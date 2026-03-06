@@ -1,9 +1,10 @@
 use std::{collections::HashSet, sync::RwLock};
 
 use redis::AsyncCommands;
+use tokio::sync::broadcast;
 use tracing::{debug, error, info, instrument, warn};
 
-use crate::domain::{QueueEntry, QueueRepository};
+use crate::domain::{QueueEntry, QueueEvent, QueueRepository};
 
 fn queue_key(guild_id: &str) -> String {
     format!("queue:{guild_id}")
@@ -12,13 +13,16 @@ fn queue_key(guild_id: &str) -> String {
 pub struct RedisQueueRepository {
     redis: redis::Client,
     open_guilds: RwLock<HashSet<String>>,
+    event_tx: broadcast::Sender<QueueEvent>,
 }
 
 impl RedisQueueRepository {
     pub fn new(redis: redis::Client) -> Self {
+        let (event_tx, _) = broadcast::channel(64);
         Self {
             redis,
             open_guilds: RwLock::new(HashSet::new()),
+            event_tx,
         }
     }
 }
@@ -39,6 +43,7 @@ impl QueueRepository for RedisQueueRepository {
         info!(guild_id, "Closing queue for guild");
         self.open_guilds.write().unwrap().remove(guild_id);
         self.clear(guild_id).await;
+        self.broadcast_update(guild_id);
     }
 
     #[instrument(skip(self), fields(guild_id))]
@@ -111,6 +116,7 @@ impl QueueRepository for RedisQueueRepository {
             0
         });
         info!(guild_id, user_id = %entry.user_id, queue_size = new_size, "Added user to queue");
+        self.broadcast_update(guild_id);
         new_size
     }
 
@@ -133,6 +139,9 @@ impl QueueRepository for RedisQueueRepository {
         match &entry {
             Some(e) => info!(guild_id, user_id = %e.user_id, "Popped user from queue"),
             None => debug!(guild_id, "No entry to pop from queue"),
+        }
+        if entry.is_some() {
+            self.broadcast_update(guild_id);
         }
         entry
     }
@@ -159,6 +168,9 @@ impl QueueRepository for RedisQueueRepository {
             .filter_map(|json_str| serde_json::from_str(&json_str).ok())
             .collect();
         info!(guild_id, count = entries.len(), "Popped entries from queue");
+        if !entries.is_empty() {
+            self.broadcast_update(guild_id);
+        }
         entries
     }
 
@@ -200,6 +212,26 @@ impl QueueRepository for RedisQueueRepository {
             }
         } else {
             error!(guild_id, "Failed to get Redis connection for clear");
+        }
+        self.broadcast_update(guild_id);
+    }
+
+    fn subscribe(&self) -> tokio::sync::broadcast::Receiver<QueueEvent> {
+        self.event_tx.subscribe()
+    }
+}
+
+impl RedisQueueRepository {
+    fn broadcast_update(&self, guild_id: &str) {
+        if let Err(err) = self.event_tx.send(QueueEvent::Updated {
+            guild_id: guild_id.to_string(),
+        }) {
+            error!(
+                guild_id,
+                "error" = ?err,
+                "guild_id" = guild_id,
+                "Failed to broadcast queue update event"
+            );
         }
     }
 }

@@ -2,7 +2,7 @@ use std::env;
 
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use vaffelbot_rs::{VaffelBot, config::Config};
+use vaffelbot_rs::{config::Config, VaffelBot};
 
 #[tokio::main]
 async fn main() {
