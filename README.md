@@ -4,6 +4,20 @@
 
 https://discord.com/oauth2/authorize?client_id=1367651749262921868&permissions=277025458240&integration_type=0&scope=bot
 
+## Create your own
+
+You can easily create your own version of this bot.
+
+It needs the premissions in 0Auth2:
+
+- Bot
+- Create commands
+- Send messages
+- Send messages in Threads
+- Read Message History
+- Add Reactions
+- Use Appliation Commands
+
 ## How to run
 
 Make sure that you have copied `.env.example` to `.env` and filled in the missing enviornment variables.
