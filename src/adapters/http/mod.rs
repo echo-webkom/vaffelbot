@@ -1,7 +1,11 @@
 use axum::{
+    extract::{
+        ws::{Message, WebSocket, WebSocketUpgrade},
+        Path, State,
+    },
+    response::Response,
+    routing::{any, get},
     Json, Router,
-    extract::{Path, State},
-    routing::get,
 };
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
@@ -9,7 +13,7 @@ use tracing::info;
 
 use std::{io, sync::Arc};
 
-use crate::domain::{OrderRepository, QueueEntry, QueueRepository};
+use crate::domain::{OrderRepository, QueueEntry, QueueEvent, QueueRepository};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -35,7 +39,9 @@ impl HttpAdapter {
         });
 
         let app = Router::new()
+            .route("/{guild_id}/status", get(queue_status))
             .route("/{guild_id}/queue", get(list_queue))
+            .route("/{guild_id}/queue/ws", any(list_queue_ws))
             .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
             .with_state(state);
 
@@ -46,10 +52,51 @@ impl HttpAdapter {
     }
 }
 
+async fn queue_status(State(state): State<Arc<AppState>>, Path(guild_id): Path<String>) -> String {
+    let is_open = state.queue.is_open(&guild_id);
+    let status = if is_open { "open" } else { "closed" };
+    status.to_string()
+}
+
 async fn list_queue(
     State(state): State<Arc<AppState>>,
     Path(guild_id): Path<String>,
 ) -> Json<Vec<QueueEntry>> {
     let queue = state.queue.list(&guild_id).await;
     Json(queue)
+}
+
+async fn list_queue_ws(
+    State(state): State<Arc<AppState>>,
+    Path(guild_id): Path<String>,
+    ws: WebSocketUpgrade,
+) -> Response {
+    ws.on_upgrade(move |socket| list_queue_ws_handler(state, guild_id, socket))
+}
+
+async fn list_queue_ws_handler(state: Arc<AppState>, guild_id: String, mut socket: WebSocket) {
+    info!("new websocket connection for guild_id: {}", guild_id);
+
+    let mut rx = state.queue.subscribe();
+
+    // Initial state
+    let queue = state.queue.list(&guild_id).await;
+    let msg = serde_json::to_string(&queue).unwrap();
+    if socket.send(Message::Text(msg.into())).await.is_err() {
+        return;
+    }
+
+    while let Ok(event) = rx.recv().await {
+        match event {
+            QueueEvent::Updated { guild_id: gid } => {
+                if gid == guild_id {
+                    let queue = state.queue.list(&guild_id).await;
+                    let msg = serde_json::to_string(&queue).unwrap();
+                    if socket.send(Message::Text(msg.into())).await.is_err() {
+                        break;
+                    }
+                }
+            }
+        }
+    }
 }

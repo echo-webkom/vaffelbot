@@ -13,6 +13,11 @@ impl QueueEntry {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum QueueEvent {
+    Updated { guild_id: String },
+}
+
 #[async_trait::async_trait]
 pub trait QueueRepository: Send + Sync {
     /// Open the queue to allow new entries
@@ -47,4 +52,7 @@ pub trait QueueRepository: Send + Sync {
 
     /// Clear the queue
     async fn clear(&self, guild_id: &str);
+
+    /// Subscribe to queue change events
+    fn subscribe(&self) -> tokio::sync::broadcast::Receiver<QueueEvent>;
 }
