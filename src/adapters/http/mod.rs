@@ -39,6 +39,7 @@ impl HttpAdapter {
         });
 
         let app = Router::new()
+            .route("/{guild_id}/status", get(queue_status))
             .route("/{guild_id}/queue", get(list_queue))
             .route("/{guild_id}/queue/ws", any(list_queue_ws))
             .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
@@ -49,6 +50,12 @@ impl HttpAdapter {
 
         axum::serve(listener, app).await
     }
+}
+
+async fn queue_status(State(state): State<Arc<AppState>>, Path(guild_id): Path<String>) -> String {
+    let is_open = state.queue.is_open(&guild_id);
+    let status = if is_open { "open" } else { "closed" };
+    status.to_string()
 }
 
 async fn list_queue(
