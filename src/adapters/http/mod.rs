@@ -1,17 +1,16 @@
 use axum::{
-    extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
-        Path, State,
-    },
-    response::Response,
-    routing::{any, get},
     Json, Router,
+    extract::{Path, State},
+    response::sse::{Event, KeepAlive, Sse},
+    routing::get,
 };
+use futures::stream::{self, Stream, StreamExt};
+use tokio_stream::wrappers::BroadcastStream;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
-use std::{io, sync::Arc};
+use std::{convert::Infallible, io, sync::Arc};
 
 use crate::domain::{OrderRepository, QueueEntry, QueueEvent, QueueRepository};
 
@@ -41,7 +40,7 @@ impl HttpAdapter {
         let app = Router::new()
             .route("/{guild_id}/status", get(queue_status))
             .route("/{guild_id}/queue", get(list_queue))
-            .route("/{guild_id}/queue/ws", any(list_queue_ws))
+            .route("/{guild_id}/queue/sse", get(list_queue_sse))
             .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
             .with_state(state);
 
@@ -66,37 +65,32 @@ async fn list_queue(
     Json(queue)
 }
 
-async fn list_queue_ws(
+async fn list_queue_sse(
     State(state): State<Arc<AppState>>,
     Path(guild_id): Path<String>,
-    ws: WebSocketUpgrade,
-) -> Response {
-    ws.on_upgrade(move |socket| list_queue_ws_handler(state, guild_id, socket))
-}
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    let rx = state.queue.subscribe();
 
-async fn list_queue_ws_handler(state: Arc<AppState>, guild_id: String, mut socket: WebSocket) {
-    info!("new websocket connection for guild_id: {}", guild_id);
-
-    let mut rx = state.queue.subscribe();
-
-    // Initial state
     let queue = state.queue.list(&guild_id).await;
-    let msg = serde_json::to_string(&queue).unwrap();
-    if socket.send(Message::Text(msg.into())).await.is_err() {
-        return;
-    }
+    let initial = serde_json::to_string(&queue).unwrap();
 
-    while let Ok(event) = rx.recv().await {
-        match event {
-            QueueEvent::Updated { guild_id: gid } => {
-                if gid == guild_id {
+    let first =
+        stream::once(async move { Ok::<Event, Infallible>(Event::default().data(initial)) });
+
+    let updates = BroadcastStream::new(rx).filter_map(move |event| {
+        let guild_id = guild_id.clone();
+        let state = state.clone();
+        async move {
+            match event {
+                Ok(QueueEvent::Updated { guild_id: gid }) if gid == guild_id => {
                     let queue = state.queue.list(&guild_id).await;
-                    let msg = serde_json::to_string(&queue).unwrap();
-                    if socket.send(Message::Text(msg.into())).await.is_err() {
-                        break;
-                    }
+                    let data = serde_json::to_string(&queue).unwrap();
+                    Some(Ok(Event::default().data(data)))
                 }
+                _ => None,
             }
         }
-    }
+    });
+
+    Sse::new(first.chain(updates)).keep_alive(KeepAlive::default())
 }

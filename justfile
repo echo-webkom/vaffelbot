@@ -14,3 +14,6 @@ test:
 
 migrate:
     sqlx migrate run --source migrations --database-url "$DATABASE_URL"
+
+offline:
+    cargo sqlx prepare
