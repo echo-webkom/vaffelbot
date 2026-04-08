@@ -38,6 +38,7 @@ impl HttpAdapter {
         });
 
         let app = Router::new()
+            .route("/", get(health_check))
             .route("/{guild_id}/status", get(queue_status))
             .route("/{guild_id}/queue", get(list_queue))
             .route("/{guild_id}/queue/sse", get(list_queue_sse))
@@ -49,6 +50,10 @@ impl HttpAdapter {
 
         axum::serve(listener, app).await
     }
+}
+
+async fn health_check() -> &'static str {
+    "OK"
 }
 
 async fn queue_status(State(state): State<Arc<AppState>>, Path(guild_id): Path<String>) -> String {
