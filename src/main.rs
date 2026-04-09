@@ -6,14 +6,17 @@ use vaffelbot_rs::{config::Config, VaffelBot};
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-                format!("{}=debug,tower_http=debug", env!("CARGO_CRATE_NAME")).into()
-            }),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
+        format!("{}=debug,tower_http=debug", env!("CARGO_CRATE_NAME")).into()
+    });
+    let fmt_layer = tracing_subscriber::fmt::layer();
+    let registry = tracing_subscriber::registry().with(filter);
+
+    if cfg!(debug_assertions) {
+        registry.with(fmt_layer).init();
+    } else {
+        registry.with(fmt_layer.json()).init();
+    };
 
     info!("Starting VaffelBot");
 
