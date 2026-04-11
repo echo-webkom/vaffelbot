@@ -19,7 +19,7 @@ pub async fn open(ctx: Context<'_>) -> Result<(), Error> {
     }
 
     ctx.data().queue.open(&guild_id);
-    ctx.say("🔓️ Bestilling er nå åpnet").await?;
+    ctx.say("@here 🔓️ Bestilling er nå åpnet").await?;
 
     ctx.serenity_context().set_presence(
         Some(ActivityData::playing("🧇 Lager vafler")),

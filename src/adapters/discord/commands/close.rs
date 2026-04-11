@@ -21,7 +21,7 @@ pub async fn close(ctx: Context<'_>) -> Result<(), Error> {
 
     ctx.data().queue.close(&guild_id).await;
 
-    let mut message = "🔒️ Bestilling er nå stengt".to_string();
+    let mut message = "@here 🔒️ Bestilling er nå stengt".to_string();
 
     match ctx.data().orders.daily_stats(&guild_id).await {
         Ok(stats) if stats.total_orders > 0 => {
