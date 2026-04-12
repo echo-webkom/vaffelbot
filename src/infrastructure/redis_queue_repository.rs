@@ -223,16 +223,11 @@ impl QueueRepository for RedisQueueRepository {
 
 impl RedisQueueRepository {
     fn broadcast_update(&self, guild_id: &str) {
-        if let Err(err) = self.event_tx.send(QueueEvent::Updated {
+        // We ignore this error, because it fails when there are no subscribers,
+        // which is most of the time.
+        let _ = self.event_tx.send(QueueEvent::Updated {
             guild_id: guild_id.to_string(),
-        }) {
-            error!(
-                guild_id,
-                "error" = ?err,
-                "guild_id" = guild_id,
-                "Failed to broadcast queue update event"
-            );
-        }
+        });
     }
 }
 
