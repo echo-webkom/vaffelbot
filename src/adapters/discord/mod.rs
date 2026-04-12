@@ -1,11 +1,10 @@
 pub mod commands;
 
-use std::collections::HashMap;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 
 use poise::FrameworkOptions;
 use serenity::Error as SerenityError;
-use serenity::all::{GatewayIntents, GuildId, RoleId};
+use serenity::all::GatewayIntents;
 
 use crate::domain::{OrderRepository, QueueRepository};
 
@@ -17,7 +16,6 @@ pub type Context<'a> = poise::Context<'a, Data, Error>;
 pub struct Data {
     pub queue: Arc<dyn QueueRepository>,
     pub orders: Arc<dyn OrderRepository>,
-    pub oracle_roles: RwLock<HashMap<GuildId, RoleId>>,
 }
 
 pub struct DiscordAdapter {
@@ -63,7 +61,6 @@ impl DiscordAdapter {
                     Ok(Data {
                         queue: self.queue.clone(),
                         orders: self.orders.clone(),
-                        oracle_roles: RwLock::new(HashMap::new()),
                     })
                 })
             })
@@ -90,59 +87,30 @@ pub async fn check_is_oracle(ctx: Context<'_>) -> Result<bool, Error> {
         }
     };
 
-    // For slash commands, the member is already in the interaction data (no API call).
-    let member = match ctx.author_member().await {
-        Some(member) => member,
-        None => {
+    let member = match guild_id.member(ctx, ctx.author().id).await {
+        Ok(member) => member,
+        Err(_) => {
             deny(ctx).await?;
             return Ok(false);
         }
     };
 
-    // Check cache for the orakel role ID
-    let cached = ctx
-        .data()
-        .oracle_roles
-        .read()
-        .unwrap()
-        .get(&guild_id)
-        .copied();
-
-    let orakel_role_id = match cached {
-        Some(id) => id,
-        None => {
-            let roles = match guild_id.roles(ctx).await {
-                Ok(roles) => roles,
-                Err(_) => {
-                    deny(ctx).await?;
-                    return Ok(false);
-                }
-            };
-
-            match roles.values().find(|r| r.name.to_lowercase() == "orakel") {
-                Some(role) => {
-                    let id = role.id;
-                    ctx.data()
-                        .oracle_roles
-                        .write()
-                        .unwrap()
-                        .insert(guild_id, id);
-                    id
-                }
-                None => {
-                    deny(ctx).await?;
-                    return Ok(false);
-                }
-            }
+    let roles = match guild_id.roles(ctx).await {
+        Ok(roles) => roles,
+        Err(_) => {
+            deny(ctx).await?;
+            return Ok(false);
         }
     };
 
-    if member.roles.contains(&orakel_role_id) {
-        return Ok(true);
+    let orakel_role = roles.values().find(|r| r.name.to_lowercase() == "orakel");
+    match orakel_role {
+        Some(role) if member.roles.contains(&role.id) => Ok(true),
+        _ => {
+            deny(ctx).await?;
+            Ok(false)
+        }
     }
-
-    deny(ctx).await?;
-    Ok(false)
 }
 
 async fn deny(ctx: Context<'_>) -> Result<(), Error> {
