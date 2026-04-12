@@ -14,7 +14,7 @@ pub async fn queue(ctx: Context<'_>) -> Result<(), Error> {
     let size = ctx.data().queue.size(&guild_id).await;
     let user_id = ctx.author().id.to_string();
     let message = match ctx.data().queue.index_of(&guild_id, &user_id).await {
-        Some(index) => format!("😎 Du er {} av {} i køen", index + 1, size),
+        Some(index) => format!("😎 Du er nr {} av {} i køen", index + 1, size),
         None => format!("🚨 Du er ikke i køen. Det er {} i køen", size),
     };
 
