@@ -43,7 +43,8 @@ pub async fn feedback(
             "labels": ["feedback"]
         }))
         .send()
-        .await?;
+        .await
+        .expect("Failed to send feedback to GitHub");
 
     if response.status().is_success() {
         ctx.send(
