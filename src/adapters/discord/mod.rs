@@ -16,12 +16,14 @@ pub type Context<'a> = poise::Context<'a, Data, Error>;
 pub struct Data {
     pub queue: Arc<dyn QueueRepository>,
     pub orders: Arc<dyn OrderRepository>,
+    pub github_token: Option<String>,
 }
 
 pub struct DiscordAdapter {
     token: String,
     queue: Arc<dyn QueueRepository>,
     orders: Arc<dyn OrderRepository>,
+    github_token: Option<String>,
 }
 
 impl DiscordAdapter {
@@ -29,11 +31,13 @@ impl DiscordAdapter {
         token: String,
         queue: Arc<dyn QueueRepository>,
         orders: Arc<dyn OrderRepository>,
+        github_token: Option<String>,
     ) -> Self {
         Self {
             token,
             queue,
             orders,
+            github_token,
         }
     }
 
@@ -43,6 +47,7 @@ impl DiscordAdapter {
                 commands::bake::bake(),
                 commands::close::close(),
                 commands::github::github(),
+                commands::feedback::feedback(),
                 commands::open::open(),
                 commands::ping::ping(),
                 commands::queue_size::queue(),
@@ -62,6 +67,7 @@ impl DiscordAdapter {
                     Ok(Data {
                         queue: self.queue.clone(),
                         orders: self.orders.clone(),
+                        github_token: self.github_token.clone(),
                     })
                 })
             })
