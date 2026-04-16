@@ -1,12 +1,13 @@
 use axum::{
     Json, Router,
     extract::{Path, State},
+    http::Method,
     response::sse::{Event, KeepAlive, Sse},
     routing::get,
 };
 use futures::stream::{self, Stream, StreamExt};
 use tokio_stream::wrappers::BroadcastStream;
-use tower::ServiceBuilder;
+use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
@@ -37,12 +38,17 @@ impl HttpAdapter {
             orders: self.orders.clone(),
         });
 
+        let cors = CorsLayer::new()
+            .allow_methods([Method::GET, Method::POST])
+            .allow_origin(Any);
+
         let app = Router::new()
             .route("/", get(health_check))
             .route("/{guild_id}/status", get(queue_status))
             .route("/{guild_id}/queue", get(list_queue))
             .route("/{guild_id}/queue/sse", get(list_queue_sse))
-            .layer(ServiceBuilder::new().layer(TraceLayer::new_for_http()))
+            .layer(cors)
+            .layer(TraceLayer::new_for_http())
             .with_state(state);
 
         let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();

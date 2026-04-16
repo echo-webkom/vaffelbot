@@ -2,13 +2,12 @@ use std::env;
 
 use tracing::{error, info};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
-use vaffelbot_rs::{config::Config, VaffelBot};
+use vaffelbot_rs::{VaffelBot, config::Config};
 
 #[tokio::main]
 async fn main() {
-    let filter = tracing_subscriber::EnvFilter::try_from_default_env().unwrap_or_else(|_| {
-        format!("{}=debug,tower_http=debug", env!("CARGO_CRATE_NAME")).into()
-    });
+    let filter = tracing_subscriber::EnvFilter::try_from_default_env()
+        .unwrap_or_else(|_| format!("{}=debug,tower_http=debug", env!("CARGO_CRATE_NAME")).into());
     let fmt_layer = tracing_subscriber::fmt::layer();
     let registry = tracing_subscriber::registry().with(filter);
 
