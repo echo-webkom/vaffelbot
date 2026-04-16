@@ -42,6 +42,7 @@ impl DiscordAdapter {
             commands: vec![
                 commands::bake::bake(),
                 commands::close::close(),
+                commands::github::github(),
                 commands::open::open(),
                 commands::ping::ping(),
                 commands::queue_size::queue(),
