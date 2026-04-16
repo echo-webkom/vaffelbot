@@ -44,6 +44,7 @@ impl VaffelBot {
             self.config.discord_token.clone(),
             queue.clone(),
             orders.clone(),
+            self.config.github_token.clone(),
         );
 
         let http_adapter = HttpAdapter::new(queue.clone(), orders.clone());
