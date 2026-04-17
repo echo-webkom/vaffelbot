@@ -47,6 +47,7 @@ impl HttpAdapter {
             .route("/{guild_id}/status", get(queue_status))
             .route("/{guild_id}/queue", get(list_queue))
             .route("/{guild_id}/queue/sse", get(list_queue_sse))
+            .route("/{guild_id}/total", get(total_vaffel))
             .layer(cors)
             .layer(TraceLayer::new_for_http())
             .with_state(state);
@@ -74,6 +75,14 @@ async fn list_queue(
 ) -> Json<Vec<QueueEntry>> {
     let queue = state.queue.list(&guild_id).await;
     Json(queue)
+}
+
+async fn total_vaffel(
+    State(state): State<Arc<AppState>>,
+    Path(guild_id): Path<String>,
+) -> Json<i64> {
+    let stats = state.orders.daily_stats(&guild_id).await.unwrap();
+    Json(stats.total_orders)
 }
 
 async fn list_queue_sse(
