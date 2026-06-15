@@ -89,7 +89,7 @@ async fn list_queue_sse(
     State(state): State<Arc<AppState>>,
     Path(guild_id): Path<String>,
 ) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let rx = state.queue.subscribe();
+    let rx = state.queue.subscribe(&guild_id);
 
     let queue = state.queue.list(&guild_id).await;
     let initial = serde_json::to_string(&queue).unwrap();
@@ -102,7 +102,7 @@ async fn list_queue_sse(
         let state = state.clone();
         async move {
             match event {
-                Ok(QueueEvent::Updated { guild_id: gid }) if gid == guild_id => {
+                Ok(QueueEvent::Updated) => {
                     let queue = state.queue.list(&guild_id).await;
                     let data = serde_json::to_string(&queue).unwrap();
                     Some(Ok(Event::default().data(data)))

@@ -1,4 +1,7 @@
-use std::{collections::HashSet, sync::RwLock};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::RwLock,
+};
 
 use redis::AsyncCommands;
 use tokio::sync::broadcast;
@@ -13,16 +16,15 @@ fn queue_key(guild_id: &str) -> String {
 pub struct RedisQueueRepository {
     redis: redis::Client,
     open_guilds: RwLock<HashSet<String>>,
-    event_tx: broadcast::Sender<QueueEvent>,
+    guild_senders: RwLock<HashMap<String, broadcast::Sender<QueueEvent>>>,
 }
 
 impl RedisQueueRepository {
     pub fn new(redis: redis::Client) -> Self {
-        let (event_tx, _) = broadcast::channel(64);
         Self {
             redis,
             open_guilds: RwLock::new(HashSet::new()),
-            event_tx,
+            guild_senders: RwLock::new(HashMap::new()),
         }
     }
 }
@@ -190,18 +192,30 @@ impl QueueRepository for RedisQueueRepository {
         self.broadcast_update(guild_id);
     }
 
-    fn subscribe(&self) -> tokio::sync::broadcast::Receiver<QueueEvent> {
-        self.event_tx.subscribe()
+    fn subscribe(&self, guild_id: &str) -> tokio::sync::broadcast::Receiver<QueueEvent> {
+        {
+            // Checks if there is already a sender for this guild, and if so, subscribes to it.
+            // We keep this in a seperate block to drop the read lock before acquiring the write lock.
+            let read = self.guild_senders.read().unwrap();
+            if let Some(tx) = read.get(guild_id) {
+                return tx.subscribe();
+            }
+        }
+        // If there is no sender for this guild, we create one and subscribe to it.
+        let mut write = self.guild_senders.write().unwrap();
+        let tx = write
+            .entry(guild_id.to_string())
+            .or_insert_with(|| broadcast::channel(64).0);
+        tx.subscribe()
     }
 }
 
 impl RedisQueueRepository {
     fn broadcast_update(&self, guild_id: &str) {
-        // We ignore this error, because it fails when there are no subscribers,
-        // which is most of the time.
-        let _ = self.event_tx.send(QueueEvent::Updated {
-            guild_id: guild_id.to_string(),
-        });
+        let read = self.guild_senders.read().unwrap();
+        if let Some(tx) = read.get(guild_id) {
+            let _ = tx.send(QueueEvent::Updated);
+        }
     }
 }
 
