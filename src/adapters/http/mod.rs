@@ -1,24 +1,17 @@
-use axum::{
-    Json, Router,
-    extract::{Path, State},
-    http::Method,
-    response::sse::{Event, KeepAlive, Sse},
-    routing::get,
-};
-use futures::stream::{self, Stream, StreamExt};
-use tokio_stream::wrappers::BroadcastStream;
+mod routes;
+
+use axum::{Router, http::Method, routing::get};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 
-use std::{convert::Infallible, io, sync::Arc};
+use std::{io, sync::Arc};
 
-use crate::domain::{OrderRepository, QueueEntry, QueueEvent, QueueRepository};
+use crate::domain::{OrderRepository, QueueRepository};
 
 #[derive(Clone)]
 pub struct AppState {
     queue: Arc<dyn QueueRepository>,
-    #[allow(dead_code)]
     orders: Arc<dyn OrderRepository>,
 }
 
@@ -43,11 +36,11 @@ impl HttpAdapter {
             .allow_origin(Any);
 
         let app = Router::new()
-            .route("/", get(health_check))
-            .route("/{guild_id}/status", get(queue_status))
-            .route("/{guild_id}/queue", get(list_queue))
-            .route("/{guild_id}/queue/sse", get(list_queue_sse))
-            .route("/{guild_id}/total", get(total_vaffel))
+            .route("/", get(routes::health_check))
+            .route("/{guild_id}/status", get(routes::queue_status))
+            .route("/{guild_id}/queue", get(routes::list_queue))
+            .route("/{guild_id}/queue/sse", get(routes::list_queue_sse))
+            .route("/{guild_id}/total", get(routes::total_vaffel))
             .layer(cors)
             .layer(TraceLayer::new_for_http())
             .with_state(state);
@@ -57,60 +50,4 @@ impl HttpAdapter {
 
         axum::serve(listener, app).await
     }
-}
-
-async fn health_check() -> &'static str {
-    "OK"
-}
-
-async fn queue_status(State(state): State<Arc<AppState>>, Path(guild_id): Path<String>) -> String {
-    let is_open = state.queue.is_open(&guild_id);
-    let status = if is_open { "open" } else { "closed" };
-    status.to_string()
-}
-
-async fn list_queue(
-    State(state): State<Arc<AppState>>,
-    Path(guild_id): Path<String>,
-) -> Json<Vec<QueueEntry>> {
-    let queue = state.queue.list(&guild_id).await;
-    Json(queue)
-}
-
-async fn total_vaffel(
-    State(state): State<Arc<AppState>>,
-    Path(guild_id): Path<String>,
-) -> Json<i64> {
-    let stats = state.orders.daily_stats(&guild_id).await.unwrap();
-    Json(stats.total_orders)
-}
-
-async fn list_queue_sse(
-    State(state): State<Arc<AppState>>,
-    Path(guild_id): Path<String>,
-) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
-    let rx = state.queue.subscribe(&guild_id);
-
-    let queue = state.queue.list(&guild_id).await;
-    let initial = serde_json::to_string(&queue).unwrap();
-
-    let first =
-        stream::once(async move { Ok::<Event, Infallible>(Event::default().data(initial)) });
-
-    let updates = BroadcastStream::new(rx).filter_map(move |event| {
-        let guild_id = guild_id.clone();
-        let state = state.clone();
-        async move {
-            match event {
-                Ok(QueueEvent::Updated) => {
-                    let queue = state.queue.list(&guild_id).await;
-                    let data = serde_json::to_string(&queue).unwrap();
-                    Some(Ok(Event::default().data(data)))
-                }
-                _ => None,
-            }
-        }
-    });
-
-    Sse::new(first.chain(updates)).keep_alive(KeepAlive::default())
 }
