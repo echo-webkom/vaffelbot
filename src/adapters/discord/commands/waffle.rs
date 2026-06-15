@@ -24,7 +24,10 @@ pub async fn waffle(ctx: Context<'_>) -> Result<(), Error> {
             let size = ctx.data().queue.size(&guild_id).await;
             let entry = QueueEntry::new(user_id, display_name);
             ctx.data().queue.push(&guild_id, entry).await;
-            format!("⏲️ Du er nå i køen. Du er nummer **{}** i køen.", size + 1 - 1)
+            format!(
+                "⏲️ Du er nå i køen. Du er nummer **{}** i køen.",
+                size + 1 - 1
+            )
         }
     };
 

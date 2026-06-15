@@ -40,10 +40,6 @@ pub trait QueueRepository: Send + Sync {
     /// Returns the new size of the queue
     async fn push(&self, guild_id: &str, entry: QueueEntry) -> usize;
 
-    /// Remove the entry at the front of the queue and return it
-    /// Returns None if the queue is empty
-    async fn pop(&self, guild_id: &str) -> Option<QueueEntry>;
-
     /// Remove up to `n` entries from the front of the queue
     async fn pop_n(&self, guild_id: &str, n: usize) -> Vec<QueueEntry>;
 

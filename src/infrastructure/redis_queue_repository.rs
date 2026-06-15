@@ -120,32 +120,6 @@ impl QueueRepository for RedisQueueRepository {
         new_size
     }
 
-    #[instrument(skip(self), fields(guild_id))]
-    async fn pop(&self, guild_id: &str) -> Option<QueueEntry> {
-        let key = queue_key(guild_id);
-        let mut con = match self.redis.get_multiplexed_async_connection().await {
-            Ok(con) => con,
-            Err(e) => {
-                error!(guild_id, error = ?e, "Failed to get Redis connection for pop");
-                return None;
-            }
-        };
-        let result: redis::RedisResult<Vec<String>> = con.lpop(&key, None).await;
-        let entry: Option<QueueEntry> = result
-            .ok()
-            .and_then(|mut vec| vec.pop())
-            .and_then(|json_str| serde_json::from_str(&json_str).ok());
-
-        match &entry {
-            Some(e) => info!(guild_id, user_id = %e.user_id, "Popped user from queue"),
-            None => debug!(guild_id, "No entry to pop from queue"),
-        }
-        if entry.is_some() {
-            self.broadcast_update(guild_id);
-        }
-        entry
-    }
-
     #[instrument(skip(self), fields(guild_id, n))]
     async fn pop_n(&self, guild_id: &str, n: usize) -> Vec<QueueEntry> {
         if n == 0 {
@@ -285,29 +259,6 @@ mod tests {
         let queue = RedisQueueRepository::new(redis.client.clone());
         queue.clear(TEST_GUILD).await;
         queue
-    }
-
-    #[tokio::test]
-    async fn test_push_and_pop() {
-        let queue = setup().await;
-        let guild = "test-push-and-pop";
-        queue.clear(guild).await;
-
-        let foo = QueueEntry::new("foo".to_string(), "Foo User".to_string());
-        let bar = QueueEntry::new("bar".to_string(), "Bar User".to_string());
-
-        queue.push(guild, foo.clone()).await;
-        queue.push(guild, bar.clone()).await;
-
-        assert_eq!(queue.size(guild).await, 2);
-        assert_eq!(queue.index_of(guild, "bar").await, Some(1));
-
-        let popped = queue.pop(guild).await;
-        assert_eq!(popped, Some(foo));
-        assert_eq!(queue.size(guild).await, 1);
-
-        let remaining = queue.list(guild).await;
-        assert_eq!(remaining, vec![bar]);
     }
 
     #[tokio::test]
