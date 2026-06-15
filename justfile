@@ -17,3 +17,6 @@ migrate:
 
 offline:
     cargo sqlx prepare
+
+check:
+    cargo fmt --all && cargo clippy --fix --tests --allow-dirty
