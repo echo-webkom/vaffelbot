@@ -1,3 +1,10 @@
+pub(crate) mod adapters;
+pub(crate) mod config;
+pub(crate) mod domain;
+pub(crate) mod infrastructure;
+
+pub use config::Config;
+
 use std::sync::Arc;
 
 use sqlx::postgres::PgPoolOptions;
@@ -5,14 +12,8 @@ use tracing::{error, instrument};
 
 use crate::{
     adapters::{DiscordAdapter, HttpAdapter},
-    config::Config,
     infrastructure::{PostgresOrderRepository, RedisQueueRepository},
 };
-
-pub mod adapters;
-pub mod config;
-pub mod domain;
-pub mod infrastructure;
 
 pub struct VaffelBot {
     config: Config,

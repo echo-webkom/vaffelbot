@@ -3548,7 +3548,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f4bf03e0ca70d626ecc4ba6b0763b934b6f2976e8c744088bb3c1d646fbb1ad0"
 
 [[package]]
-name = "vaffelbot-rs"
+name = "vaffelbot"
 version = "0.1.0"
 dependencies = [
  "anyhow",
