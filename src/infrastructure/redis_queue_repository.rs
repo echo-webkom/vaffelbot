@@ -5,7 +5,7 @@ use std::{
 
 use redis::AsyncCommands;
 use tokio::sync::broadcast;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, info, instrument};
 
 use crate::domain::{QueueEntry, QueueEvent, QueueRepository};
 
@@ -14,18 +14,20 @@ fn queue_key(guild_id: &str) -> String {
 }
 
 pub struct RedisQueueRepository {
-    redis: redis::Client,
+    redis: redis::aio::ConnectionManager,
     open_guilds: RwLock<HashSet<String>>,
     guild_senders: RwLock<HashMap<String, broadcast::Sender<QueueEvent>>>,
 }
 
 impl RedisQueueRepository {
-    pub fn new(redis: redis::Client) -> Self {
-        Self {
-            redis,
+    pub async fn new(redis: redis::Client) -> redis::RedisResult<Self> {
+        let connection_manager = redis.get_connection_manager().await?;
+
+        Ok(Self {
+            redis: connection_manager,
             open_guilds: RwLock::new(HashSet::new()),
             guild_senders: RwLock::new(HashMap::new()),
-        }
+        })
     }
 }
 
@@ -41,11 +43,10 @@ impl QueueRepository for RedisQueueRepository {
     }
 
     #[instrument(skip(self), fields(guild_id))]
-    async fn close(&self, guild_id: &str) {
+    async fn close(&self, guild_id: &str) -> anyhow::Result<()> {
         info!(guild_id, "Closing queue for guild");
         self.open_guilds.write().unwrap().remove(guild_id);
-        self.clear(guild_id).await;
-        self.broadcast_update(guild_id);
+        self.clear(guild_id).await
     }
 
     #[instrument(skip(self), fields(guild_id))]
@@ -56,140 +57,83 @@ impl QueueRepository for RedisQueueRepository {
     }
 
     #[instrument(skip(self), fields(guild_id, user_id))]
-    async fn index_of(&self, guild_id: &str, user_id: &str) -> Option<usize> {
+    async fn index_of(&self, guild_id: &str, user_id: &str) -> anyhow::Result<Option<usize>> {
         let key = queue_key(guild_id);
-        let mut con = match self.redis.get_multiplexed_async_connection().await {
-            Ok(con) => con,
-            Err(e) => {
-                error!(guild_id, user_id, error = ?e, "Failed to get Redis connection for index_of");
-                return None;
-            }
-        };
+        let mut con = self.redis.clone();
 
-        let list: Vec<String> = match con.lrange(&key, 0, -1).await {
-            Ok(list) => list,
-            Err(e) => {
-                error!(guild_id, user_id, error = ?e, "Failed to fetch queue list from Redis");
-                return None;
-            }
-        };
-
-        let position = list.iter().position(|json_str| {
-            serde_json::from_str::<QueueEntry>(json_str)
-                .map(|entry| entry.user_id == user_id)
-                .unwrap_or(false)
-        });
+        let list: Vec<String> = con.lrange(&key, 0, -1).await?;
+        let entries = list
+            .into_iter()
+            .map(|json| serde_json::from_str::<QueueEntry>(&json))
+            .collect::<serde_json::Result<Vec<_>>>()?;
+        let position = entries.iter().position(|entry| entry.user_id == user_id);
 
         debug!(guild_id, user_id, position = ?position, "Found user position in queue");
-        position
+        Ok(position)
     }
 
     #[instrument(skip(self), fields(guild_id))]
-    async fn size(&self, guild_id: &str) -> usize {
+    async fn size(&self, guild_id: &str) -> anyhow::Result<usize> {
         let key = queue_key(guild_id);
-        let mut con = match self.redis.get_multiplexed_async_connection().await {
-            Ok(con) => con,
-            Err(e) => {
-                error!(guild_id, error = ?e, "Failed to get Redis connection for size");
-                return 0;
-            }
-        };
-        let size = con.llen(&key).await.unwrap_or_else(|e| {
-            error!(guild_id, error = ?e, "Failed to get queue size from Redis");
-            0
-        });
+        let mut con = self.redis.clone();
+        let size = con.llen(&key).await?;
         debug!(guild_id, size, "Retrieved queue size");
-        size
+        Ok(size)
     }
 
     #[instrument(skip(self, entry), fields(guild_id, user_id = %entry.user_id))]
-    async fn push(&self, guild_id: &str, entry: QueueEntry) -> usize {
+    async fn push(&self, guild_id: &str, entry: QueueEntry) -> anyhow::Result<usize> {
         let key = queue_key(guild_id);
-        let json = serde_json::to_string(&entry).unwrap();
-        let mut con = match self.redis.get_multiplexed_async_connection().await {
-            Ok(con) => con,
-            Err(e) => {
-                error!(guild_id, user_id = %entry.user_id, error = ?e, "Failed to get Redis connection for push");
-                return 0;
-            }
-        };
-        let new_size = con.rpush(&key, json).await.unwrap_or_else(|e| {
-            error!(guild_id, user_id = %entry.user_id, error = ?e, "Failed to push to queue in Redis");
-            0
-        });
+        let json = serde_json::to_string(&entry)?;
+        let mut con = self.redis.clone();
+        let new_size = con.rpush(&key, json).await?;
         info!(guild_id, user_id = %entry.user_id, queue_size = new_size, "Added user to queue");
         self.broadcast_update(guild_id);
-        new_size
+        Ok(new_size)
     }
 
     #[instrument(skip(self), fields(guild_id, n))]
-    async fn pop_n(&self, guild_id: &str, n: usize) -> Vec<QueueEntry> {
+    async fn pop_n(&self, guild_id: &str, n: usize) -> anyhow::Result<Vec<QueueEntry>> {
         if n == 0 {
-            return vec![];
+            return Ok(vec![]);
         }
 
         let key = queue_key(guild_id);
-        let mut con = match self.redis.get_multiplexed_async_connection().await {
-            Ok(con) => con,
-            Err(e) => {
-                error!(guild_id, error = ?e, "Failed to get Redis connection for pop_n");
-                return vec![];
-            }
-        };
+        let mut con = self.redis.clone();
         let count = std::num::NonZeroUsize::new(n);
-        let result: redis::RedisResult<Vec<String>> = con.lpop(&key, count).await;
-        let entries: Vec<QueueEntry> = result
-            .unwrap_or_default()
+        let json_entries: Vec<String> = con.lpop(&key, count).await?;
+        let entries = json_entries
             .into_iter()
-            .filter_map(|json_str| serde_json::from_str(&json_str).ok())
-            .collect();
+            .map(|json| serde_json::from_str::<QueueEntry>(&json))
+            .collect::<serde_json::Result<Vec<_>>>()?;
         info!(guild_id, count = entries.len(), "Popped entries from queue");
         if !entries.is_empty() {
             self.broadcast_update(guild_id);
         }
-        entries
+        Ok(entries)
     }
 
     #[instrument(skip(self), fields(guild_id))]
-    async fn list(&self, guild_id: &str) -> Vec<QueueEntry> {
+    async fn list(&self, guild_id: &str) -> anyhow::Result<Vec<QueueEntry>> {
         let key = queue_key(guild_id);
-        let mut con = match self.redis.get_multiplexed_async_connection().await {
-            Ok(con) => con,
-            Err(e) => {
-                error!(guild_id, error = ?e, "Failed to get Redis connection for list");
-                return vec![];
-            }
-        };
-        let json_list: Vec<String> = con.lrange(&key, 0, -1).await.unwrap_or_else(|e| {
-            error!(guild_id, error = ?e, "Failed to fetch queue list from Redis");
-            vec![]
-        });
-        let entries: Vec<QueueEntry> = json_list
+        let mut con = self.redis.clone();
+        let json_list: Vec<String> = con.lrange(&key, 0, -1).await?;
+        let entries = json_list
             .into_iter()
-            .filter_map(|json_str| {
-                serde_json::from_str(&json_str).ok().or_else(|| {
-                    warn!(guild_id, json = %json_str, "Failed to deserialize queue entry");
-                    None
-                })
-            })
-            .collect();
+            .map(|json| serde_json::from_str::<QueueEntry>(&json))
+            .collect::<serde_json::Result<Vec<_>>>()?;
         debug!(guild_id, count = entries.len(), "Retrieved queue list");
-        entries
+        Ok(entries)
     }
 
     #[instrument(skip(self), fields(guild_id))]
-    async fn clear(&self, guild_id: &str) {
+    async fn clear(&self, guild_id: &str) -> anyhow::Result<()> {
         let key = queue_key(guild_id);
-        if let Ok(mut con) = self.redis.get_multiplexed_async_connection().await {
-            let result: redis::RedisResult<()> = con.del(&key).await;
-            match result {
-                Ok(_) => info!(guild_id, "Cleared queue"),
-                Err(e) => error!(guild_id, error = ?e, "Failed to clear queue in Redis"),
-            }
-        } else {
-            error!(guild_id, "Failed to get Redis connection for clear");
-        }
+        let mut con = self.redis.clone();
+        let _: usize = con.del(&key).await?;
+        info!(guild_id, "Cleared queue");
         self.broadcast_update(guild_id);
+        Ok(())
     }
 
     fn subscribe(&self, guild_id: &str) -> tokio::sync::broadcast::Receiver<QueueEvent> {
@@ -270,8 +214,10 @@ mod tests {
 
     async fn setup() -> RedisQueueRepository {
         let redis = init_redis().await;
-        let queue = RedisQueueRepository::new(redis.client.clone());
-        queue.clear(TEST_GUILD).await;
+        let queue = RedisQueueRepository::new(redis.client.clone())
+            .await
+            .unwrap();
+        queue.clear(TEST_GUILD).await.unwrap();
         queue
     }
 
@@ -279,15 +225,15 @@ mod tests {
     async fn test_list() {
         let queue = setup().await;
         let guild = "test-list";
-        queue.clear(guild).await;
+        queue.clear(guild).await.unwrap();
 
         let foo = QueueEntry::new("foo".to_string(), "Foo User".to_string());
         let bar = QueueEntry::new("bar".to_string(), "Bar User".to_string());
 
-        queue.push(guild, foo.clone()).await;
-        queue.push(guild, bar.clone()).await;
+        queue.push(guild, foo.clone()).await.unwrap();
+        queue.push(guild, bar.clone()).await.unwrap();
 
-        let list = queue.list(guild).await;
+        let list = queue.list(guild).await.unwrap();
         assert_eq!(list, vec![foo, bar]);
     }
 
@@ -295,52 +241,52 @@ mod tests {
     async fn test_index_of() {
         let queue = setup().await;
         let guild = "test-index-of";
-        queue.clear(guild).await;
+        queue.clear(guild).await.unwrap();
 
         let foo = QueueEntry::new("foo".to_string(), "Foo User".to_string());
         let bar = QueueEntry::new("bar".to_string(), "Bar User".to_string());
 
-        queue.push(guild, foo).await;
-        queue.push(guild, bar).await;
+        queue.push(guild, foo).await.unwrap();
+        queue.push(guild, bar).await.unwrap();
 
-        assert_eq!(queue.index_of(guild, "foo").await, Some(0));
-        assert_eq!(queue.index_of(guild, "bar").await, Some(1));
-        assert_eq!(queue.index_of(guild, "baz").await, None);
+        assert_eq!(queue.index_of(guild, "foo").await.unwrap(), Some(0));
+        assert_eq!(queue.index_of(guild, "bar").await.unwrap(), Some(1));
+        assert_eq!(queue.index_of(guild, "baz").await.unwrap(), None);
     }
 
     #[tokio::test]
     async fn test_size() {
         let queue = setup().await;
         let guild = "test-size";
-        queue.clear(guild).await;
+        queue.clear(guild).await.unwrap();
 
-        assert_eq!(queue.size(guild).await, 0);
+        assert_eq!(queue.size(guild).await.unwrap(), 0);
 
         let foo = QueueEntry::new("foo".to_string(), "Foo User".to_string());
         let bar = QueueEntry::new("bar".to_string(), "Bar User".to_string());
 
-        queue.push(guild, foo).await;
-        queue.push(guild, bar).await;
+        queue.push(guild, foo).await.unwrap();
+        queue.push(guild, bar).await.unwrap();
 
-        assert_eq!(queue.size(guild).await, 2);
+        assert_eq!(queue.size(guild).await.unwrap(), 2);
     }
 
     #[tokio::test]
     async fn test_clear() {
         let queue = setup().await;
         let guild = "test-clear";
-        queue.clear(guild).await;
+        queue.clear(guild).await.unwrap();
 
         let foo = QueueEntry::new("foo".to_string(), "Foo User".to_string());
         let bar = QueueEntry::new("bar".to_string(), "Bar User".to_string());
 
-        queue.push(guild, foo).await;
-        queue.push(guild, bar).await;
+        queue.push(guild, foo).await.unwrap();
+        queue.push(guild, bar).await.unwrap();
 
-        assert_eq!(queue.size(guild).await, 2);
+        assert_eq!(queue.size(guild).await.unwrap(), 2);
 
-        queue.clear(guild).await;
+        queue.clear(guild).await.unwrap();
 
-        assert_eq!(queue.size(guild).await, 0);
+        assert_eq!(queue.size(guild).await.unwrap(), 0);
     }
 }

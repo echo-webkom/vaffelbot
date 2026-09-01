@@ -23,7 +23,7 @@ pub async fn bake(
         return Ok(());
     }
 
-    let baked = ctx.data().queue.pop_n(&guild_id, amount).await;
+    let baked = ctx.data().queue.pop_n(&guild_id, amount).await?;
     let message = create_baked_message(&baked);
 
     let user_ids: Vec<&str> = baked.iter().map(|e| e.user_id.as_str()).collect();

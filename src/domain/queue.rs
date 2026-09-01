@@ -24,30 +24,30 @@ pub trait QueueRepository: Send + Sync {
     fn open(&self, guild_id: &str);
 
     /// Close the queue to prevent new entries
-    async fn close(&self, guild_id: &str);
+    async fn close(&self, guild_id: &str) -> anyhow::Result<()>;
 
     /// Check if the queue is currently open
     fn is_open(&self, guild_id: &str) -> bool;
 
     /// Find the position of a user in the queue by user_id
     /// Returns None if the user is not found
-    async fn index_of(&self, guild_id: &str, user_id: &str) -> Option<usize>;
+    async fn index_of(&self, guild_id: &str, user_id: &str) -> anyhow::Result<Option<usize>>;
 
     /// Get the current size of the queue
-    async fn size(&self, guild_id: &str) -> usize;
+    async fn size(&self, guild_id: &str) -> anyhow::Result<usize>;
 
     /// Add a user to the end of the queue
     /// Returns the new size of the queue
-    async fn push(&self, guild_id: &str, entry: QueueEntry) -> usize;
+    async fn push(&self, guild_id: &str, entry: QueueEntry) -> anyhow::Result<usize>;
 
     /// Remove up to `n` entries from the front of the queue
-    async fn pop_n(&self, guild_id: &str, n: usize) -> Vec<QueueEntry>;
+    async fn pop_n(&self, guild_id: &str, n: usize) -> anyhow::Result<Vec<QueueEntry>>;
 
     /// Get all entries in the queue
-    async fn list(&self, guild_id: &str) -> Vec<QueueEntry>;
+    async fn list(&self, guild_id: &str) -> anyhow::Result<Vec<QueueEntry>>;
 
     /// Clear the queue
-    async fn clear(&self, guild_id: &str);
+    async fn clear(&self, guild_id: &str) -> anyhow::Result<()>;
 
     /// Subscribe to queue change events for a specific guild
     fn subscribe(&self, guild_id: &str) -> tokio::sync::broadcast::Receiver<QueueEvent>;

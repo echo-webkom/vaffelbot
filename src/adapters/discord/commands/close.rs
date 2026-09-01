@@ -19,7 +19,7 @@ pub async fn close(ctx: Context<'_>) -> Result<(), Error> {
         return Ok(());
     }
 
-    ctx.data().queue.close(&guild_id).await;
+    ctx.data().queue.close(&guild_id).await?;
 
     let mut message = "@here 🔒️ Bestilling er nå stengt".to_string();
 

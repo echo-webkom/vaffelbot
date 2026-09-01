@@ -26,8 +26,7 @@ impl VaffelBot {
 
     #[instrument(skip(self))]
     pub async fn run(self) -> anyhow::Result<()> {
-        let redis =
-            redis::Client::open(self.config.redis_url.clone()).expect("Failed to connect to Redis");
+        let redis = redis::Client::open(self.config.redis_url.clone())?;
         let pg_pool = PgPoolOptions::new()
             .max_connections(5)
             .connect(&self.config.database_url)
@@ -36,7 +35,8 @@ impl VaffelBot {
 
         sqlx::migrate!().run(&pg_pool).await?;
 
-        let queue: Arc<dyn domain::QueueRepository> = Arc::new(RedisQueueRepository::new(redis));
+        let queue: Arc<dyn domain::QueueRepository> =
+            Arc::new(RedisQueueRepository::new(redis).await?);
 
         let orders: Arc<dyn domain::OrderRepository> =
             Arc::new(PostgresOrderRepository::new(pg_pool));

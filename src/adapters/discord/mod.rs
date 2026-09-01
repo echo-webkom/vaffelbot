@@ -3,7 +3,6 @@ pub mod commands;
 use std::sync::Arc;
 
 use poise::FrameworkOptions;
-use serenity::Error as SerenityError;
 use serenity::all::GatewayIntents;
 
 use crate::domain::{OrderRepository, QueueRepository};
@@ -41,7 +40,7 @@ impl DiscordAdapter {
         }
     }
 
-    pub async fn start(self) -> Result<(), SerenityError> {
+    pub async fn start(self) -> anyhow::Result<()> {
         let options: FrameworkOptions<Data, Error> = poise::FrameworkOptions {
             commands: vec![
                 commands::bake::bake(),
@@ -81,7 +80,8 @@ impl DiscordAdapter {
         .framework(framework)
         .await?;
 
-        client.start().await
+        client.start().await?;
+        Ok(())
     }
 }
 
