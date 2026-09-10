@@ -22,10 +22,10 @@ It needs the premissions in 0Auth2:
 
 Make sure that you have copied `.env.example` to `.env` and filled in the missing enviornment variables.
 
-| Variable        | Description                                                           |
-| --------------- | --------------------------------------------------------------------- |
-| `DISCORD_TOKEN` | The discord token. Used in authenticate requests                      |
-| `REDIS_URL`     | The url to the redis (valkey) database                                |
+| Variable        | Description                                      |
+| --------------- | ------------------------------------------------ |
+| `DISCORD_TOKEN` | The discord token. Used in authenticate requests |
+| `REDIS_URL`     | The url to the redis (valkey) database           |
 
 When this is done you can just run the bot with:
 
@@ -63,6 +63,10 @@ Starts the queue
 #### `/ping`
 
 Pings the bot to see if it is alive. Basic healthcheck.
+
+#### `/highscore`
+
+Shows the server's highest number of waffles baked in a single day and the date.
 
 #### `/kø`
 

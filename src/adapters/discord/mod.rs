@@ -46,6 +46,7 @@ impl DiscordAdapter {
                 commands::bake::bake(),
                 commands::close::close(),
                 commands::github::github(),
+                commands::highscore::highscore(),
                 commands::feedback::feedback(),
                 commands::open::open(),
                 commands::ping::ping(),

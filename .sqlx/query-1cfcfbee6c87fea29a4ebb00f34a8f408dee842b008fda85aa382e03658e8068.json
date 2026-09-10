@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT fulfilled_at::date AS \"day!\", COUNT(*) AS \"total_orders!\" FROM orders WHERE guild_id = $1 GROUP BY fulfilled_at::date ORDER BY COUNT(*) DESC, fulfilled_at::date ASC LIMIT 1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "day!",
+        "type_info": "Date"
+      },
+      {
+        "ordinal": 1,
+        "name": "total_orders!",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      null,
+      null
+    ]
+  },
+  "hash": "1cfcfbee6c87fea29a4ebb00f34a8f408dee842b008fda85aa382e03658e8068"
+}

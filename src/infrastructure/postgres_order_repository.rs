@@ -1,7 +1,7 @@
 use sqlx::PgPool;
 use tracing::{debug, error, info, instrument};
 
-use crate::domain::{DailyStats, OrderRepository};
+use crate::domain::{DailyStats, Highscore, OrderRepository};
 
 pub struct PostgresOrderRepository {
     pool: PgPool,
@@ -15,6 +15,30 @@ impl PostgresOrderRepository {
 
 #[async_trait::async_trait]
 impl OrderRepository for PostgresOrderRepository {
+    #[instrument(skip(self), fields(guild_id))]
+    async fn highscore(&self, guild_id: &str) -> anyhow::Result<Option<Highscore>> {
+        // Ties go to the earliest day the record was reached.
+        let record = sqlx::query!(
+            "SELECT fulfilled_at::date AS \"day!\", COUNT(*) AS \"total_orders!\" FROM orders \
+             WHERE guild_id = $1 \
+             GROUP BY fulfilled_at::date \
+             ORDER BY COUNT(*) DESC, fulfilled_at::date ASC \
+             LIMIT 1",
+            guild_id
+        )
+        .fetch_optional(&self.pool)
+        .await
+        .map_err(|e| {
+            error!(guild_id, error = ?e, "Failed to fetch waffle highscore");
+            e
+        })?;
+
+        Ok(record.map(|row| Highscore {
+            date: row.day,
+            total_orders: row.total_orders,
+        }))
+    }
+
     #[instrument(skip(self), fields(count = discord_user_ids.len(), guild_id))]
     async fn record_orders(&self, discord_user_ids: &[&str], guild_id: &str) -> anyhow::Result<()> {
         if discord_user_ids.is_empty() {
