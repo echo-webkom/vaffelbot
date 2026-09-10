@@ -46,13 +46,14 @@ fn create_baked_message(baked: &[QueueEntry]) -> String {
     }
 
     let mut msg = MessageBuilder::new();
-    msg.push("🧇 Stekte ").push(baked.len().to_string());
+    msg.push("🧇 Stekte ");
 
     if baked.len() == 1 {
-        msg.push(" en vaffel til: ");
+        msg.push("en vaffel til: ");
         let user_id = UserId::new(baked[0].user_id.parse::<u64>().unwrap());
         msg.mention(&user_id);
     } else {
+        msg.push(baked.len().to_string());
         msg.push(" vafler til: ");
 
         for (i, entry) in baked.iter().enumerate() {
@@ -87,7 +88,7 @@ mod tests {
     fn test_create_baked_message_single() {
         let entry = create_queue_entry("123456789");
         let msg = create_baked_message(&[entry]);
-        assert_eq!(msg, "🧇 Stekte 1 en vaffel til: <@123456789>");
+        assert_eq!(msg, "🧇 Stekte en vaffel til: <@123456789>");
     }
 
     #[test]
