@@ -87,28 +87,19 @@ impl DiscordAdapter {
 }
 
 pub async fn check_is_oracle(ctx: Context<'_>) -> Result<bool, Error> {
-    let guild_id = match ctx.guild_id() {
-        Some(id) => id,
-        None => {
-            deny(ctx).await?;
-            return Ok(false);
-        }
+    let Some(guild_id) = ctx.guild_id() else {
+        deny(ctx).await?;
+        return Ok(false);
     };
 
-    let member = match guild_id.member(ctx, ctx.author().id).await {
-        Ok(member) => member,
-        Err(_) => {
-            deny(ctx).await?;
-            return Ok(false);
-        }
+    let Ok(member) = guild_id.member(ctx, ctx.author().id).await else {
+        deny(ctx).await?;
+        return Ok(false);
     };
 
-    let roles = match guild_id.roles(ctx).await {
-        Ok(roles) => roles,
-        Err(_) => {
-            deny(ctx).await?;
-            return Ok(false);
-        }
+    let Ok(roles) = guild_id.roles(ctx).await else {
+        deny(ctx).await?;
+        return Ok(false);
     };
 
     let orakel_role = roles.values().find(|r| r.name.to_lowercase() == "orakel");

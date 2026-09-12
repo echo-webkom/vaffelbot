@@ -29,7 +29,7 @@ pub trait QueueRepository: Send + Sync {
     /// Check if the queue is currently open
     fn is_open(&self, guild_id: &str) -> bool;
 
-    /// Find the position of a user in the queue by user_id
+    /// Find the position of a user in the queue by `user_id`
     /// Returns None if the user is not found
     async fn index_of(&self, guild_id: &str, user_id: &str) -> anyhow::Result<Option<usize>>;
 

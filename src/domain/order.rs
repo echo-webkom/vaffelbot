@@ -12,6 +12,6 @@ pub struct Highscore {
 
 pub struct DailyStats {
     pub total_orders: i64,
-    /// (discord_user_id, count)
+    /// (`discord_user_id`, count)
     pub top_users: Vec<(String, i64)>,
 }

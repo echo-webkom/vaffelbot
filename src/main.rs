@@ -15,7 +15,7 @@ async fn main() {
         registry.with(fmt_layer).init();
     } else {
         registry.with(fmt_layer.json()).init();
-    };
+    }
 
     info!("Starting VaffelBot");
 

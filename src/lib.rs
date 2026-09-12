@@ -20,10 +20,19 @@ pub struct VaffelBot {
 }
 
 impl VaffelBot {
+    #[must_use]
     pub fn new(config: Config) -> Self {
         Self { config }
     }
 
+    /// Start the HTTP server and Discord bot after initializing storage.
+    ///
+    /// # Errors
+    /// Returns an error if Redis configuration, Redis connection setup, or
+    /// database migrations fail.
+    ///
+    /// # Panics
+    /// Panics if the connection to PostgreSQL fails.
     #[instrument(skip(self))]
     pub async fn run(self) -> anyhow::Result<()> {
         let redis = redis::Client::open(self.config.redis_url.clone())?;

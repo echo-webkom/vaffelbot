@@ -42,8 +42,8 @@ pub async fn total_vaffel(
     State(state): State<Arc<AppState>>,
     Path(guild_id): Path<String>,
 ) -> Json<i64> {
-    let stats = state.orders.daily_stats(&guild_id).await.unwrap();
-    Json(stats.total_orders)
+    let daily_orders = state.orders.daily_stats(&guild_id).await.unwrap();
+    Json(daily_orders.total_orders)
 }
 
 pub async fn list_queue_sse(

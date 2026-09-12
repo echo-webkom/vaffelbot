@@ -10,17 +10,16 @@ pub async fn feedback(
     ctx: Context<'_>,
     #[description = "Tilbakemeldingen din"] message: String,
 ) -> Result<(), Error> {
-    let github_token = match &ctx.data().github_token {
-        Some(token) => token.clone(),
-        None => {
-            ctx.send(
-                CreateReply::default()
-                    .content("❌ Tilbakemelding er ikke konfigurert.")
-                    .ephemeral(true),
-            )
-            .await?;
-            return Ok(());
-        }
+    let github_token = if let Some(token) = &ctx.data().github_token {
+        token.clone()
+    } else {
+        ctx.send(
+            CreateReply::default()
+                .content("❌ Tilbakemelding er ikke konfigurert.")
+                .ephemeral(true),
+        )
+        .await?;
+        return Ok(());
     };
 
     let author = ctx.author();
@@ -34,7 +33,7 @@ pub async fn feedback(
     let response = client
         .post("https://api.github.com/repos/echo-webkom/vaffelbot/issues")
         .header("Accept", "application/vnd.github+json")
-        .header("Authorization", format!("Bearer {}", github_token))
+        .header("Authorization", format!("Bearer {github_token}"))
         .header("X-GitHub-Api-Version", "2026-03-10")
         .header("User-Agent", "vaffelbot")
         .json(&json!({

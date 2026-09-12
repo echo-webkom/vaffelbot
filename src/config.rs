@@ -6,6 +6,12 @@ pub struct Config {
 }
 
 impl Config {
+    /// Load configuration from the environment and an optional `.env` file.
+    ///
+    /// # Panics
+    /// Panics if `REDIS_URL`, `DISCORD_TOKEN`, or `DATABASE_URL` is missing or
+    /// contains invalid Unicode.
+    #[must_use]
     pub fn from_env() -> Self {
         dotenv::dotenv().ok();
 
