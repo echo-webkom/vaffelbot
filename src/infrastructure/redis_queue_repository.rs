@@ -93,14 +93,14 @@ impl QueueRepository for RedisQueueRepository {
     }
 
     #[instrument(skip(self), fields(guild_id, n))]
-    async fn pop_n(&self, guild_id: &str, n: usize) -> anyhow::Result<Vec<QueueEntry>> {
+    async fn pop_n(&self, guild_id: &str, n: u32) -> anyhow::Result<Vec<QueueEntry>> {
         if n == 0 {
             return Ok(vec![]);
         }
 
         let key = queue_key(guild_id);
         let mut con = self.redis.clone();
-        let count = std::num::NonZeroUsize::new(n);
+        let count = std::num::NonZeroUsize::new(n as usize);
         let json_entries: Vec<String> = con.lpop(&key, count).await?;
         let entries = json_entries
             .into_iter()

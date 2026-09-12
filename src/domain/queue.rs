@@ -41,7 +41,7 @@ pub trait QueueRepository: Send + Sync {
     async fn push(&self, guild_id: &str, entry: QueueEntry) -> anyhow::Result<usize>;
 
     /// Remove up to `n` entries from the front of the queue
-    async fn pop_n(&self, guild_id: &str, n: usize) -> anyhow::Result<Vec<QueueEntry>>;
+    async fn pop_n(&self, guild_id: &str, n: u32) -> anyhow::Result<Vec<QueueEntry>>;
 
     /// Get all entries in the queue
     async fn list(&self, guild_id: &str) -> anyhow::Result<Vec<QueueEntry>>;

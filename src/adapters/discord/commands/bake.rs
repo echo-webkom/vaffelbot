@@ -14,7 +14,7 @@ use crate::domain::QueueEntry;
 )]
 pub async fn bake(
     ctx: Context<'_>,
-    #[description = "Hvor mange vafler?"] amount: usize,
+    #[description = "Hvor mange vafler?"] amount: u32,
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
