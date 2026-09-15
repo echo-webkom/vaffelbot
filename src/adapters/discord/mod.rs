@@ -47,6 +47,7 @@ impl DiscordAdapter {
                 commands::close::close(),
                 commands::github::github(),
                 commands::highscore::highscore(),
+                commands::leaderboard::leaderboard(),
                 commands::feedback::feedback(),
                 commands::open::open(),
                 commands::ping::ping(),
