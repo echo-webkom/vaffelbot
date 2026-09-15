@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT discord_user_id, COUNT(*) as count FROM orders\n             WHERE guild_id = $1\n             AND fulfilled_at >= date_trunc('year', CURRENT_TIMESTAMP)\n             AND fulfilled_at < date_trunc('year', CURRENT_TIMESTAMP) + INTERVAL '1 year'\n             GROUP BY discord_user_id\n             ORDER BY count DESC, discord_user_id ASC\n             LIMIT 5",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "discord_user_id",
+        "type_info": "Text"
+      },
+      {
+        "ordinal": 1,
+        "name": "count",
+        "type_info": "Int8"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      null
+    ]
+  },
+  "hash": "a4dc4b635826ecd87d363b8c8ba22972512be750b877b073759e5089af2b343e"
+}
