@@ -68,6 +68,10 @@ Pings the bot to see if it is alive. Basic healthcheck.
 
 Shows the server's highest number of waffles baked in a single day and the date.
 
+#### `/leaderboard`
+
+Shows the users with the most waffle orders in the current year.
+
 #### `/kø`
 
 Checks the where in the queue the person who ran the command is.

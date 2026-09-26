@@ -16,14 +16,40 @@ impl PostgresOrderRepository {
 #[async_trait::async_trait]
 impl OrderRepository for PostgresOrderRepository {
     #[instrument(skip(self), fields(guild_id))]
+    async fn leaderboard(&self, guild_id: &str) -> anyhow::Result<Vec<(String, i64)>> {
+        // Gets the top 5 users with the most orders in the current year.
+        let rows = sqlx::query!(
+            r#"SELECT discord_user_id, COUNT(*) as count FROM orders
+             WHERE guild_id = $1
+             AND fulfilled_at >= date_trunc('year', CURRENT_TIMESTAMP)
+             AND fulfilled_at < date_trunc('year', CURRENT_TIMESTAMP) + INTERVAL '1 year'
+             GROUP BY discord_user_id
+             ORDER BY count DESC, discord_user_id ASC
+             LIMIT 5"#,
+            guild_id
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| {
+            error!(guild_id, error = ?e, "Failed to fetch yearly leaderboard");
+            e
+        })?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| (row.discord_user_id, row.count.unwrap_or(0)))
+            .collect())
+    }
+
+    #[instrument(skip(self), fields(guild_id))]
     async fn highscore(&self, guild_id: &str) -> anyhow::Result<Option<Highscore>> {
         // Ties go to the earliest day the record was reached.
         let record = sqlx::query!(
-            "SELECT fulfilled_at::date AS \"day!\", COUNT(*) AS \"total_orders!\" FROM orders \
-             WHERE guild_id = $1 \
-             GROUP BY fulfilled_at::date \
-             ORDER BY COUNT(*) DESC, fulfilled_at::date ASC \
-             LIMIT 1",
+            r#"SELECT fulfilled_at::date AS "day!", COUNT(*) AS "total_orders!" FROM orders
+             WHERE guild_id = $1
+             GROUP BY fulfilled_at::date
+             ORDER BY COUNT(*) DESC, fulfilled_at::date ASC
+             LIMIT 1"#,
             guild_id
         )
         .fetch_optional(&self.pool)
@@ -56,7 +82,7 @@ impl OrderRepository for PostgresOrderRepository {
         let guild_ids: Vec<String> = vec![guild_id.to_string(); discord_user_ids.len()];
 
         sqlx::query!(
-            "INSERT INTO orders (discord_user_id, guild_id) SELECT * FROM UNNEST($1::text[], $2::text[])",
+            r#"INSERT INTO orders (discord_user_id, guild_id) SELECT * FROM UNNEST($1::text[], $2::text[])"#,
             &discord_user_ids_vec[..],
             &guild_ids[..]
         )
@@ -84,7 +110,7 @@ impl OrderRepository for PostgresOrderRepository {
         debug!(guild_id, "Fetching daily stats");
 
         let total = sqlx::query_scalar!(
-            "SELECT COUNT(*) FROM orders WHERE fulfilled_at::date = CURRENT_DATE AND guild_id = $1",
+            r#"SELECT COUNT(*) FROM orders WHERE fulfilled_at::date = CURRENT_DATE AND guild_id = $1"#,
             guild_id
         )
         .fetch_one(&self.pool)
@@ -96,11 +122,11 @@ impl OrderRepository for PostgresOrderRepository {
         .unwrap_or(0);
 
         let top_users: Vec<(String, i64)> = sqlx::query!(
-            "SELECT discord_user_id, COUNT(*) as count FROM orders \
-             WHERE fulfilled_at::date = CURRENT_DATE AND guild_id = $1 \
-             GROUP BY discord_user_id \
-             ORDER BY count DESC \
-             LIMIT 3",
+            r#"SELECT discord_user_id, COUNT(*) as count FROM orders
+             WHERE fulfilled_at::date = CURRENT_DATE AND guild_id = $1
+             GROUP BY discord_user_id
+             ORDER BY count DESC
+             LIMIT 3"#,
             guild_id
         )
         .fetch_all(&self.pool)

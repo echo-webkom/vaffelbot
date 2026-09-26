@@ -3,6 +3,7 @@ pub mod close;
 pub mod feedback;
 pub mod github;
 pub mod highscore;
+pub mod leaderboard;
 pub mod open;
 pub mod ping;
 pub mod queue_size;
