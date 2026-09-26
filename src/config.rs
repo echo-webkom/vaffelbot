@@ -13,7 +13,7 @@ impl Config {
     /// contains invalid Unicode.
     #[must_use]
     pub fn from_env() -> Self {
-        dotenv::dotenv().ok();
+        dotenvy::dotenv().ok();
 
         let redis_url = std::env::var("REDIS_URL").expect("Expected REDIS_URL in environment");
         let discord_token =

@@ -20,3 +20,6 @@ offline:
 
 check:
     cargo fmt --all && cargo clippy --fix --tests --allow-dirty
+
+deny:
+    cargo deny check advisories bans sources
