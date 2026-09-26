@@ -169,14 +169,17 @@ mod tests {
 
     use super::*;
 
-    use testcontainers::runners::AsyncRunner;
-    use testcontainers_modules::redis::Redis;
+    use testcontainers::{
+        ContainerAsync, GenericImage,
+        core::{IntoContainerPort, WaitFor},
+        runners::AsyncRunner,
+    };
     use tokio::sync::OnceCell;
 
     const TEST_GUILD: &str = "test-guild";
 
     struct TestRedis {
-        _node: testcontainers::ContainerAsync<Redis>,
+        _node: ContainerAsync<GenericImage>,
         client: redis::Client,
     }
 
@@ -199,7 +202,12 @@ mod tests {
                     }
                 }
 
-                let node = Redis::default().start().await.unwrap();
+                let node = GenericImage::new("redis", "latest")
+                    .with_exposed_port(6379.tcp())
+                    .with_wait_for(WaitFor::message_on_stdout("Ready to accept connections"))
+                    .start()
+                    .await
+                    .unwrap();
                 let host_ip = node.get_host().await.unwrap();
                 let host_port = node.get_host_port_ipv4(6379).await.unwrap();
                 let url = format!("redis://{host_ip}:{host_port}");
