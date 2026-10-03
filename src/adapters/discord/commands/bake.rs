@@ -2,7 +2,7 @@ use serenity::all::{MessageBuilder, UserId};
 use tracing::error;
 
 use crate::adapters::discord::{Context, Error, check_is_oracle};
-use crate::domain::QueueEntry;
+use crate::domain::{OrderRepository, QueueEntry, QueueRepository};
 
 /// Stek vaffel
 #[tracing::instrument(name = "bake", skip(ctx))]
@@ -18,16 +18,32 @@ pub async fn bake(
 ) -> Result<(), Error> {
     let guild_id = ctx.guild_id().unwrap().to_string();
 
-    if !ctx.data().queue.is_open(&guild_id) {
-        ctx.say("🔒️ Bestilling er stengt").await?;
-        return Ok(());
+    let message = bake_waffles(
+        ctx.data().queue.as_ref(),
+        ctx.data().orders.as_ref(),
+        &guild_id,
+        amount,
+    )
+    .await?;
+    ctx.say(message).await?;
+
+    Ok(())
+}
+
+async fn bake_waffles(
+    queue: &dyn QueueRepository,
+    orders: &dyn OrderRepository,
+    guild_id: &str,
+    amount: u32,
+) -> anyhow::Result<String> {
+    if !queue.is_open(guild_id) {
+        return Ok("🔒️ Bestilling er stengt".to_string());
     }
 
-    let baked = ctx.data().queue.pop_n(&guild_id, amount).await?;
-    let message = create_baked_message(&baked);
+    let baked = queue.pop_n(guild_id, amount).await?;
 
-    let user_ids: Vec<&str> = baked.iter().map(|e| e.user_id.as_str()).collect();
-    if let Err(e) = ctx.data().orders.record_orders(&user_ids, &guild_id).await {
+    let user_ids: Vec<String> = baked.iter().map(|e| e.user_id.clone()).collect();
+    if let Err(e) = orders.record_orders(&user_ids, guild_id).await {
         error!(
             guild_id = %guild_id,
             error = ?e,
@@ -35,9 +51,7 @@ pub async fn bake(
         );
     }
 
-    ctx.say(message).await?;
-
-    Ok(())
+    Ok(create_baked_message(&baked))
 }
 
 fn create_baked_message(baked: &[QueueEntry]) -> String {
@@ -75,7 +89,10 @@ fn create_baked_message(baked: &[QueueEntry]) -> String {
 
 #[cfg(test)]
 mod tests {
+    use mockall::predicate::eq;
+
     use super::*;
+    use crate::domain::{MockOrderRepository, MockQueueRepository};
 
     fn create_queue_entry(user_id: &str) -> QueueEntry {
         QueueEntry {
@@ -119,5 +136,52 @@ mod tests {
     fn test_create_baked_message_empty() {
         let msg = create_baked_message(&[]);
         assert_eq!(msg, "😟 Ingen å steke vafler til.");
+    }
+
+    #[tokio::test]
+    async fn test_bake_waffles_closed() {
+        let mut queue = MockQueueRepository::new();
+        queue.expect_is_open().return_const(false);
+        queue.expect_pop_n().never();
+        let mut orders = MockOrderRepository::new();
+        orders.expect_record_orders().never();
+
+        let msg = bake_waffles(&queue, &orders, "guild", 2).await.unwrap();
+        assert_eq!(msg, "🔒️ Bestilling er stengt");
+    }
+
+    #[tokio::test]
+    async fn test_bake_waffles_records_orders() {
+        let mut queue = MockQueueRepository::new();
+        queue.expect_is_open().return_const(true);
+        queue
+            .expect_pop_n()
+            .with(eq("guild"), eq(2))
+            .returning(|_, _| Ok(vec![create_queue_entry("1"), create_queue_entry("2")]));
+        let mut orders = MockOrderRepository::new();
+        orders
+            .expect_record_orders()
+            .withf(|ids, guild_id| ids == ["1", "2"] && guild_id == "guild")
+            .times(1)
+            .returning(|_, _| Ok(()));
+
+        let msg = bake_waffles(&queue, &orders, "guild", 2).await.unwrap();
+        assert_eq!(msg, "🧇 Stekte 2 vafler til: <@1> og <@2>");
+    }
+
+    #[tokio::test]
+    async fn test_bake_waffles_ignores_record_failure() {
+        let mut queue = MockQueueRepository::new();
+        queue.expect_is_open().return_const(true);
+        queue
+            .expect_pop_n()
+            .returning(|_, _| Ok(vec![create_queue_entry("1")]));
+        let mut orders = MockOrderRepository::new();
+        orders
+            .expect_record_orders()
+            .returning(|_, _| Err(anyhow::anyhow!("postgres down")));
+
+        let msg = bake_waffles(&queue, &orders, "guild", 1).await.unwrap();
+        assert_eq!(msg, "🧇 Stekte en vaffel til: <@1>");
     }
 }

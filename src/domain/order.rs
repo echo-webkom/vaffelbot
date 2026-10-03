@@ -1,6 +1,15 @@
+// Double must use because of async_trait and mockall.
+// Might be fixed in the future.
+#![allow(clippy::double_must_use)]
+
+#[cfg_attr(test, mockall::automock)]
 #[async_trait::async_trait]
 pub trait OrderRepository: Send + Sync {
-    async fn record_orders(&self, discord_user_ids: &[&str], guild_id: &str) -> anyhow::Result<()>;
+    async fn record_orders(
+        &self,
+        discord_user_ids: &[String],
+        guild_id: &str,
+    ) -> anyhow::Result<()>;
     async fn daily_stats(&self, guild_id: &str) -> anyhow::Result<DailyStats>;
     async fn highscore(&self, guild_id: &str) -> anyhow::Result<Option<Highscore>>;
 }

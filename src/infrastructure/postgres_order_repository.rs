@@ -40,7 +40,11 @@ impl OrderRepository for PostgresOrderRepository {
     }
 
     #[instrument(skip(self), fields(count = discord_user_ids.len(), guild_id))]
-    async fn record_orders(&self, discord_user_ids: &[&str], guild_id: &str) -> anyhow::Result<()> {
+    async fn record_orders(
+        &self,
+        discord_user_ids: &[String],
+        guild_id: &str,
+    ) -> anyhow::Result<()> {
         if discord_user_ids.is_empty() {
             debug!("No orders to record");
             return Ok(());
@@ -51,13 +55,11 @@ impl OrderRepository for PostgresOrderRepository {
             guild_id, "Recording orders in batch"
         );
 
-        let discord_user_ids_vec: Vec<String> =
-            discord_user_ids.iter().map(|&s| s.to_string()).collect();
         let guild_ids: Vec<String> = vec![guild_id.to_string(); discord_user_ids.len()];
 
         sqlx::query!(
             "INSERT INTO orders (discord_user_id, guild_id) SELECT * FROM UNNEST($1::text[], $2::text[])",
-            &discord_user_ids_vec[..],
+            discord_user_ids,
             &guild_ids[..]
         )
         .execute(&self.pool)

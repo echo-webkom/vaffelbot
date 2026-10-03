@@ -12,6 +12,12 @@ down:
 test:
     cargo test -- --test-threads=1
 
+coverage:
+    cargo llvm-cov --html --open
+
+coverage-lcov:
+    cargo llvm-cov --lcov --output-path lcov.info
+
 migrate:
     sqlx migrate run --source migrations --database-url "$DATABASE_URL"
 

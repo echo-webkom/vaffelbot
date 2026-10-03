@@ -34,6 +34,9 @@ jobs:
       - name: 🔍 Checkout
         uses: actions/checkout@v6
 
+      - name: 🦀 Install Rust toolchain
+        run: rustup toolchain install
+
       - name: 🦀 Cache Cargo
         uses: Swatinem/rust-cache@v2
 
@@ -45,7 +48,10 @@ jobs:
           sqlx database setup
           sqlx migrate run
 
-      - name: 🧪 Run tests
+      - name: 🦀 Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: 🧪 Run tests with coverage
         run: cargo test -- --test-threads=1
 
       - name: ✅ Clippy
