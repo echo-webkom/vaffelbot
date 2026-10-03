@@ -35,4 +35,5 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
 
 [dev-dependencies]
+mockall = "0.15.0"
 testcontainers = "0.28.0"

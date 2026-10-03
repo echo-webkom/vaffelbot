@@ -1,3 +1,7 @@
+// Double must use because of async_trait and mockall.
+// Might be fixed in the future.
+#![allow(clippy::double_must_use)]
+
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct QueueEntry {
     pub user_id: String,
@@ -18,6 +22,7 @@ pub enum QueueEvent {
     Updated,
 }
 
+#[cfg_attr(test, mockall::automock)]
 #[async_trait::async_trait]
 pub trait QueueRepository: Send + Sync {
     /// Open the queue to allow new entries

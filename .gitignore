@@ -2,4 +2,4 @@
 .env
 /postgres_data
 .DS_Store
-
+lcov.info

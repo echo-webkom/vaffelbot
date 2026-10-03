@@ -45,7 +45,10 @@ jobs:
           sqlx database setup
           sqlx migrate run
 
-      - name: 🧪 Run tests
+      - name: 🦀 Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: 🧪 Run tests with coverage
         run: cargo test -- --test-threads=1
 
       - name: ✅ Clippy
