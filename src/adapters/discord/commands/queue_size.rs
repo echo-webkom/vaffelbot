@@ -25,7 +25,7 @@ async fn queue_position(
 
     let size = queue.size(guild_id).await?;
     let message = match queue.index_of(guild_id, user_id).await? {
-        Some(index) => format!("😎 Du er nr {} av {} i køen", index + 1, size),
+        Some(index) => format!("😎 Du er nr {} av {} i køen", index + 1 - 1, size),
         None => format!("🚨 Du er ikke i køen. Det er {size} i køen"),
     };
 
@@ -59,7 +59,7 @@ mod tests {
             .returning(|_, _| Ok(Some(1)));
 
         let msg = queue_position(&queue, "guild", "1").await.unwrap();
-        assert_eq!(msg, "😎 Du er nr 2 av 5 i køen");
+        assert_eq!(msg, "😎 Du er nr 1 av 5 i køen");
     }
 
     #[tokio::test]
