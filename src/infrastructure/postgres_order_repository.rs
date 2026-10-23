@@ -1,5 +1,4 @@
 use sqlx::PgPool;
-use tracing::{debug, error, info, instrument};
 
 use crate::domain::{DailyStats, Highscore, OrderRepository};
 
@@ -15,7 +14,7 @@ impl PostgresOrderRepository {
 
 #[async_trait::async_trait]
 impl OrderRepository for PostgresOrderRepository {
-    #[instrument(skip(self), fields(guild_id))]
+    #[tracing::instrument(skip(self), fields(guild_id))]
     async fn highscore(&self, guild_id: &str) -> anyhow::Result<Option<Highscore>> {
         // Ties go to the earliest day the record was reached.
         let record = sqlx::query!(
@@ -29,7 +28,7 @@ impl OrderRepository for PostgresOrderRepository {
         .fetch_optional(&self.pool)
         .await
         .map_err(|e| {
-            error!(guild_id, error = ?e, "Failed to fetch waffle highscore");
+            tracing::error!(guild_id, error = ?e, "Failed to fetch waffle highscore");
             e
         })?;
 
@@ -39,20 +38,21 @@ impl OrderRepository for PostgresOrderRepository {
         }))
     }
 
-    #[instrument(skip(self), fields(count = discord_user_ids.len(), guild_id))]
+    #[tracing::instrument(skip(self), fields(count = discord_user_ids.len(), guild_id))]
     async fn record_orders(
         &self,
         discord_user_ids: &[String],
         guild_id: &str,
     ) -> anyhow::Result<()> {
         if discord_user_ids.is_empty() {
-            debug!("No orders to record");
+            tracing::debug!("No orders to record");
             return Ok(());
         }
 
-        debug!(
+        tracing::debug!(
             count = discord_user_ids.len(),
-            guild_id, "Recording orders in batch"
+            guild_id,
+            "Recording orders in batch"
         );
 
         let guild_ids: Vec<String> = vec![guild_id.to_string(); discord_user_ids.len()];
@@ -65,7 +65,7 @@ impl OrderRepository for PostgresOrderRepository {
         .execute(&self.pool)
         .await
         .map_err(|e| {
-            error!(
+            tracing::error!(
                 count = discord_user_ids.len(),
                 guild_id,
                 error = ?e,
@@ -74,16 +74,17 @@ impl OrderRepository for PostgresOrderRepository {
             e
         })?;
 
-        info!(
+        tracing::info!(
             count = discord_user_ids.len(),
-            guild_id, "Orders recorded successfully"
+            guild_id,
+            "Orders recorded successfully"
         );
         Ok(())
     }
 
-    #[instrument(skip(self), fields(guild_id))]
+    #[tracing::instrument(skip(self), fields(guild_id))]
     async fn daily_stats(&self, guild_id: &str) -> anyhow::Result<DailyStats> {
-        debug!(guild_id, "Fetching daily stats");
+        tracing::debug!(guild_id, "Fetching daily stats");
 
         let total = sqlx::query_scalar!(
             "SELECT COUNT(*) FROM orders WHERE fulfilled_at::date = CURRENT_DATE AND guild_id = $1",
@@ -92,7 +93,7 @@ impl OrderRepository for PostgresOrderRepository {
         .fetch_one(&self.pool)
         .await
         .map_err(|e| {
-            error!(guild_id, error = ?e, "Failed to fetch total order count");
+            tracing::error!(guild_id, error = ?e, "Failed to fetch total order count");
             e
         })?
         .unwrap_or(0);
@@ -108,14 +109,14 @@ impl OrderRepository for PostgresOrderRepository {
         .fetch_all(&self.pool)
         .await
         .map_err(|e| {
-            error!(guild_id, error = ?e, "Failed to fetch top users");
+            tracing::error!(guild_id, error = ?e, "Failed to fetch top users");
             e
         })?
         .into_iter()
         .map(|row| (row.discord_user_id, row.count.unwrap_or(0)))
         .collect();
 
-        info!(
+        tracing::info!(
             guild_id,
             total_orders = total,
             top_users_count = top_users.len(),

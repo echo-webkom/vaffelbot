@@ -5,7 +5,6 @@ use std::{
 
 use redis::AsyncCommands;
 use tokio::sync::broadcast;
-use tracing::{debug, info, instrument};
 
 use crate::domain::{QueueEntry, QueueEvent, QueueRepository};
 
@@ -33,30 +32,30 @@ impl RedisQueueRepository {
 
 #[async_trait::async_trait]
 impl QueueRepository for RedisQueueRepository {
-    #[instrument(skip(self), fields(guild_id))]
+    #[tracing::instrument(skip(self), fields(guild_id))]
     fn open(&self, guild_id: &str) {
-        info!(guild_id, "Opening queue for guild");
+        tracing::info!(guild_id, "Opening queue for guild");
         self.open_guilds
             .write()
             .unwrap()
             .insert(guild_id.to_string());
     }
 
-    #[instrument(skip(self), fields(guild_id))]
+    #[tracing::instrument(skip(self), fields(guild_id))]
     async fn close(&self, guild_id: &str) -> anyhow::Result<()> {
-        info!(guild_id, "Closing queue for guild");
+        tracing::info!(guild_id, "Closing queue for guild");
         self.open_guilds.write().unwrap().remove(guild_id);
         self.clear(guild_id).await
     }
 
-    #[instrument(skip(self), fields(guild_id))]
+    #[tracing::instrument(skip(self), fields(guild_id))]
     fn is_open(&self, guild_id: &str) -> bool {
         let is_open = self.open_guilds.read().unwrap().contains(guild_id);
-        debug!(guild_id, is_open, "Checking if queue is open");
+        tracing::debug!(guild_id, is_open, "Checking if queue is open");
         is_open
     }
 
-    #[instrument(skip(self), fields(guild_id, user_id))]
+    #[tracing::instrument(skip(self), fields(guild_id, user_id))]
     async fn index_of(&self, guild_id: &str, user_id: &str) -> anyhow::Result<Option<usize>> {
         let key = queue_key(guild_id);
         let mut con = self.redis.clone();
@@ -68,31 +67,31 @@ impl QueueRepository for RedisQueueRepository {
             .collect::<serde_json::Result<Vec<_>>>()?;
         let position = entries.iter().position(|entry| entry.user_id == user_id);
 
-        debug!(guild_id, user_id, position = ?position, "Found user position in queue");
+        tracing::debug!(guild_id, user_id, position = ?position, "Found user position in queue");
         Ok(position)
     }
 
-    #[instrument(skip(self), fields(guild_id))]
+    #[tracing::instrument(skip(self), fields(guild_id))]
     async fn size(&self, guild_id: &str) -> anyhow::Result<usize> {
         let key = queue_key(guild_id);
         let mut con = self.redis.clone();
         let size = con.llen(&key).await?;
-        debug!(guild_id, size, "Retrieved queue size");
+        tracing::debug!(guild_id, size, "Retrieved queue size");
         Ok(size)
     }
 
-    #[instrument(skip(self, entry), fields(guild_id, user_id = %entry.user_id))]
+    #[tracing::instrument(skip(self, entry), fields(guild_id, user_id = %entry.user_id))]
     async fn push(&self, guild_id: &str, entry: QueueEntry) -> anyhow::Result<usize> {
         let key = queue_key(guild_id);
         let json = serde_json::to_string(&entry)?;
         let mut con = self.redis.clone();
         let new_size = con.rpush(&key, json).await?;
-        info!(guild_id, user_id = %entry.user_id, queue_size = new_size, "Added user to queue");
+        tracing::info!(guild_id, user_id = %entry.user_id, queue_size = new_size, "Added user to queue");
         self.broadcast_update(guild_id);
         Ok(new_size)
     }
 
-    #[instrument(skip(self), fields(guild_id, n))]
+    #[tracing::instrument(skip(self), fields(guild_id, n))]
     async fn pop_n(&self, guild_id: &str, n: u32) -> anyhow::Result<Vec<QueueEntry>> {
         if n == 0 {
             return Ok(vec![]);
@@ -106,14 +105,14 @@ impl QueueRepository for RedisQueueRepository {
             .into_iter()
             .map(|json| serde_json::from_str::<QueueEntry>(&json))
             .collect::<serde_json::Result<Vec<_>>>()?;
-        info!(guild_id, count = entries.len(), "Popped entries from queue");
+        tracing::info!(guild_id, count = entries.len(), "Popped entries from queue");
         if !entries.is_empty() {
             self.broadcast_update(guild_id);
         }
         Ok(entries)
     }
 
-    #[instrument(skip(self), fields(guild_id))]
+    #[tracing::instrument(skip(self), fields(guild_id))]
     async fn list(&self, guild_id: &str) -> anyhow::Result<Vec<QueueEntry>> {
         let key = queue_key(guild_id);
         let mut con = self.redis.clone();
@@ -122,16 +121,16 @@ impl QueueRepository for RedisQueueRepository {
             .into_iter()
             .map(|json| serde_json::from_str::<QueueEntry>(&json))
             .collect::<serde_json::Result<Vec<_>>>()?;
-        debug!(guild_id, count = entries.len(), "Retrieved queue list");
+        tracing::debug!(guild_id, count = entries.len(), "Retrieved queue list");
         Ok(entries)
     }
 
-    #[instrument(skip(self), fields(guild_id))]
+    #[tracing::instrument(skip(self), fields(guild_id))]
     async fn clear(&self, guild_id: &str) -> anyhow::Result<()> {
         let key = queue_key(guild_id);
         let mut con = self.redis.clone();
         let _: usize = con.del(&key).await?;
-        info!(guild_id, "Cleared queue");
+        tracing::info!(guild_id, "Cleared queue");
         self.broadcast_update(guild_id);
         Ok(())
     }

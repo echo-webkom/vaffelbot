@@ -3,7 +3,6 @@ mod routes;
 use axum::{Router, http::Method, routing::get};
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
-use tracing::info;
 
 use std::{io, sync::Arc};
 
@@ -46,7 +45,7 @@ impl HttpAdapter {
             .with_state(state);
 
         let listener = tokio::net::TcpListener::bind("0.0.0.0:3000").await.unwrap();
-        info!("listening on http://{}", listener.local_addr().unwrap());
+        tracing::info!("listening on http://{}", listener.local_addr().unwrap());
 
         axum::serve(listener, app).await
     }

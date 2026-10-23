@@ -6,7 +6,6 @@ use axum::{
 };
 use futures::stream::{self, Stream, StreamExt};
 use tokio_stream::wrappers::BroadcastStream;
-use tracing::error;
 
 use std::{convert::Infallible, sync::Arc};
 
@@ -33,7 +32,7 @@ pub async fn list_queue(
     Path(guild_id): Path<String>,
 ) -> Result<Json<Vec<QueueEntry>>, StatusCode> {
     state.queue.list(&guild_id).await.map(Json).map_err(|e| {
-        error!(guild_id, error = ?e, "Failed to list queue");
+        tracing::error!(guild_id, error = ?e, "Failed to list queue");
         StatusCode::INTERNAL_SERVER_ERROR
     })
 }
@@ -53,11 +52,11 @@ pub async fn list_queue_sse(
     let rx = state.queue.subscribe(&guild_id);
 
     let queue = state.queue.list(&guild_id).await.map_err(|e| {
-        error!(guild_id, error = ?e, "Failed to list queue for SSE connection");
+        tracing::error!(guild_id, error = ?e, "Failed to list queue for SSE connection");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
     let initial = serde_json::to_string(&queue).map_err(|e| {
-        error!(guild_id, error = ?e, "Failed to serialize queue for SSE connection");
+        tracing::error!(guild_id, error = ?e, "Failed to serialize queue for SSE connection");
         StatusCode::INTERNAL_SERVER_ERROR
     })?;
 
@@ -73,14 +72,14 @@ pub async fn list_queue_sse(
                     Ok(queue) => match serde_json::to_string(&queue) {
                         Ok(data) => Some(Ok(Event::default().data(data))),
                         Err(e) => {
-                            error!(guild_id, error = ?e, "Failed to serialize queue update");
+                            tracing::error!(guild_id, error = ?e, "Failed to serialize queue update");
                             Some(Ok(Event::default()
                                 .event("error")
                                 .data("Failed to serialize queue update")))
                         }
                     },
                     Err(e) => {
-                        error!(guild_id, error = ?e, "Failed to list queue for SSE update");
+                        tracing::error!(guild_id, error = ?e, "Failed to list queue for SSE update");
                         Some(Ok(Event::default()
                             .event("error")
                             .data("Failed to load queue update")))

@@ -1,7 +1,6 @@
 use std::fmt::Write;
 
 use serenity::all::{Mentionable, OnlineStatus, UserId};
-use tracing::error;
 
 use crate::adapters::discord::{Context, Error, check_is_oracle};
 
@@ -51,7 +50,7 @@ pub async fn close(ctx: Context<'_>) -> Result<(), Error> {
             }
         }
         Err(e) => {
-            error!(guild_id = %guild_id, error = ?e, "Failed to fetch daily stats");
+            tracing::error!(guild_id = %guild_id, error = ?e, "Failed to fetch daily stats");
         }
         _ => {}
     }

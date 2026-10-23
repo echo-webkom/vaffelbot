@@ -1,5 +1,4 @@
 use serenity::all::{MessageBuilder, UserId};
-use tracing::error;
 
 use crate::adapters::discord::{Context, Error, check_is_oracle};
 use crate::domain::{OrderRepository, QueueEntry, QueueRepository};
@@ -44,7 +43,7 @@ async fn bake_waffles(
 
     let user_ids: Vec<String> = baked.iter().map(|e| e.user_id.clone()).collect();
     if let Err(e) = orders.record_orders(&user_ids, guild_id).await {
-        error!(
+        tracing::error!(
             guild_id = %guild_id,
             error = ?e,
             "Failed to record orders"
