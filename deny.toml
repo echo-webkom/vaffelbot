@@ -12,6 +12,10 @@ ignore = [
   { id = "RUSTSEC-2026-0098", reason = "rustls-webpki 0.102 pinned by serenity" },
   { id = "RUSTSEC-2026-0099", reason = "rustls-webpki 0.102 pinned by serenity" },
   { id = "RUSTSEC-2026-0104", reason = "rustls-webpki 0.102 pinned by serenity" },
+  { id = "RUSTSEC-2026-0382", reason = "rustls-webpki 0.102 pinned by serenity" },
+  # rustls 0.22 is pinned by serenity 0.12 (via tokio-tungstenite 0.21)
+  { id = "RUSTSEC-2026-0346", reason = "rustls 0.22 pinned by serenity" },
+  { id = "RUSTSEC-2026-0349", reason = "rustls 0.22 pinned by serenity" },
 ]
 
 [licenses.private]
