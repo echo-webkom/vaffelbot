@@ -84,12 +84,15 @@ impl QueueRepository for SqliteQueueRepository {
     #[tracing::instrument(skip(self, entry), fields(guild_id, user_id = %entry.user_id))]
     async fn push(&self, guild_id: &str, entry: QueueEntry) -> anyhow::Result<usize> {
         let mut tx = self.pool.begin().await?;
-        sqlx::query("INSERT INTO queue_entries (guild_id, user_id, display_name) VALUES (?, ?, ?)")
-            .bind(guild_id)
-            .bind(&entry.user_id)
-            .bind(&entry.display_name)
-            .execute(&mut *tx)
-            .await?;
+        sqlx::query(
+            "INSERT INTO queue_entries (guild_id, user_id, display_name) VALUES (?, ?, ?) \
+             ON CONFLICT (guild_id, user_id) DO NOTHING",
+        )
+        .bind(guild_id)
+        .bind(&entry.user_id)
+        .bind(&entry.display_name)
+        .execute(&mut *tx)
+        .await?;
         let new_size: i64 =
             sqlx::query_scalar("SELECT COUNT(*) FROM queue_entries WHERE guild_id = ?")
                 .bind(guild_id)
@@ -246,6 +249,21 @@ mod tests {
         assert_eq!(queue.push(TEST_GUILD, entry("foo")).await.unwrap(), 1);
         assert_eq!(queue.push(TEST_GUILD, entry("bar")).await.unwrap(), 2);
         assert_eq!(queue.size(TEST_GUILD).await.unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_push_duplicate() {
+        let queue = setup().await;
+
+        assert_eq!(queue.push(TEST_GUILD, entry("foo")).await.unwrap(), 1);
+        assert_eq!(queue.push(TEST_GUILD, entry("bar")).await.unwrap(), 2);
+        assert_eq!(queue.push(TEST_GUILD, entry("foo")).await.unwrap(), 2);
+        assert_eq!(queue.push("other-guild", entry("foo")).await.unwrap(), 1);
+
+        assert_eq!(
+            queue.list(TEST_GUILD).await.unwrap(),
+            vec![entry("foo"), entry("bar")]
+        );
     }
 
     #[tokio::test]
