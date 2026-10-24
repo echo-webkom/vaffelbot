@@ -7,7 +7,10 @@ pub use config::Config;
 
 use std::sync::Arc;
 
-use sqlx::postgres::PgPoolOptions;
+use sqlx::{
+    postgres::PgPoolOptions,
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
+};
 
 use crate::{
     adapters::{DiscordAdapter, HttpAdapter},
@@ -27,8 +30,8 @@ impl VaffelBot {
     /// Start the HTTP server and Discord bot after initializing storage.
     ///
     /// # Errors
-    /// Returns an error if Redis configuration, Redis connection setup, or
-    /// database migrations fail.
+    /// Returns an error if Redis configuration, Redis connection setup, the
+    /// SQLite connection, or database migrations fail.
     ///
     /// # Panics
     /// Panics if the connection to PostgreSQL fails.
@@ -37,11 +40,28 @@ impl VaffelBot {
         let redis = redis::Client::open(self.config.redis_url.clone())?;
         let pg_pool = PgPoolOptions::new()
             .max_connections(5)
-            .connect(&self.config.database_url)
+            .connect(&self.config.postgres_url)
             .await
             .expect("Failed to connect to PostgreSQL");
 
-        sqlx::migrate!().run(&pg_pool).await?;
+        sqlx::migrate!("./migrations/postgres")
+            .run(&pg_pool)
+            .await?;
+
+        if let Some(parent) = std::path::Path::new(&self.config.sqlite_path).parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let sqlite_options = SqliteConnectOptions::new()
+            .filename(&self.config.sqlite_path)
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal);
+        let sqlite_pool = SqlitePoolOptions::new()
+            .connect_with(sqlite_options)
+            .await?;
+
+        sqlx::migrate!("./migrations/sqlite")
+            .run(&sqlite_pool)
+            .await?;
 
         let queue: Arc<dyn domain::QueueRepository> =
             Arc::new(RedisQueueRepository::new(redis).await?);

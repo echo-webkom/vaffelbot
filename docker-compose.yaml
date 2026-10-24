@@ -26,7 +26,8 @@ services:
       - 3000:3000
     environment:
       - REDIS_URL=redis://redis:6379
-      - DATABASE_URL=postgres://postgres:postgres@postgres:5432/vaffelbot
+      - POSTGRES_URL=postgres://postgres:postgres@postgres:5432/vaffelbot
+      - SQLITE_PATH=/app/data/vaffelbot.db
       - DISCORD_TOKEN=your_discord_token_here
     depends_on:
       - redis

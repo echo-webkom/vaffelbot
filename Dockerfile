@@ -13,6 +13,7 @@ RUN cargo chef cook --release
 COPY ./src ./src
 COPY ./migrations ./migrations
 COPY ./.sqlx ./.sqlx
+COPY ./sqlx.toml ./sqlx.toml
 ENV SQLX_OFFLINE=true
 RUN cargo build --release
 RUN mv ./target/release/vaffelbot ./vaffelbot

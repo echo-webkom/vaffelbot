@@ -28,7 +28,7 @@ jobs:
           --health-retries 5
 
     env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/vaffelbot
+      POSTGRES_URL: postgres://postgres:postgres@localhost:5432/vaffelbot
 
     steps:
       - name: 🔍 Checkout
@@ -45,8 +45,8 @@ jobs:
 
       - name: 🧪 Prepare database
         run: |
-          sqlx database setup
-          sqlx migrate run
+          sqlx database create --database-url "$POSTGRES_URL"
+          sqlx migrate run --source migrations/postgres --database-url "$POSTGRES_URL"
 
       - name: 🦀 Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov

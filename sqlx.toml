@@ -1,0 +1,3 @@
+# Used by the `query!` macros and sqlx-cli.
+[common]
+database-url-var = "POSTGRES_URL"

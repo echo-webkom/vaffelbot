@@ -26,6 +26,8 @@ Make sure that you have copied `.env.example` to `.env` and filled in the missin
 | --------------- | ------------------------------------------------ |
 | `DISCORD_TOKEN` | The discord token. Used in authenticate requests |
 | `REDIS_URL`     | The url to the redis (valkey) database           |
+| `POSTGRES_URL`  | The url to the PostgreSQL database               |
+| `SQLITE_PATH`   | Path to the SQLite database file                 |
 
 When this is done you can just run the bot with:
 

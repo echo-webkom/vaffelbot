@@ -19,7 +19,8 @@ coverage-lcov:
     cargo llvm-cov --lcov --output-path lcov.info
 
 migrate:
-    sqlx migrate run --source migrations --database-url "$DATABASE_URL"
+    sqlx migrate run --source migrations/postgres --database-url "$POSTGRES_URL"
+    sqlx migrate run --source migrations/sqlite --database-url "sqlite://$SQLITE_PATH?mode=rwc"
 
 offline:
     cargo sqlx prepare
