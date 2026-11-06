@@ -7,6 +7,7 @@ use crate::adapters::discord::{Context, Error, check_is_oracle};
     slash_command,
     rename = "vaffelkanal",
     guild_only,
+    category = "Admin",
     check = "check_is_oracle"
 )]
 pub async fn channel(ctx: Context<'_>) -> Result<(), Error> {

@@ -9,6 +9,7 @@ use crate::domain::{OrderRepository, QueueEntry, QueueRepository};
     prefix_command,
     slash_command,
     rename = "stekt",
+    category = "Admin",
     check = "check_is_oracle"
 )]
 pub async fn bake(

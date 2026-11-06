@@ -10,6 +10,7 @@ use crate::adapters::discord::{Context, Error, check_is_oracle};
     prefix_command,
     slash_command,
     rename = "stopp",
+    category = "Admin",
     check = "check_is_oracle"
 )]
 pub async fn close(ctx: Context<'_>) -> Result<(), Error> {

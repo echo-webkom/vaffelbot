@@ -93,6 +93,13 @@ impl DiscordAdapter {
     }
 }
 
+/// Category for oracle-only commands.
+const ADMIN_CATEGORY: &str = "Admin";
+
+fn is_admin_command(command: &poise::Command<Data, Error>) -> bool {
+    command.category.as_deref() == Some(ADMIN_CATEGORY)
+}
+
 /// Global check: only respond in channels enabled with `/vaffelkanal`.
 /// If no channels are enabled for the guild, every channel is allowed.
 async fn check_channel_allowed(ctx: Context<'_>) -> Result<bool, Error> {
@@ -100,7 +107,8 @@ async fn check_channel_allowed(ctx: Context<'_>) -> Result<bool, Error> {
         return Ok(true);
     };
 
-    if ctx.command().name == commands::channel::channel().name {
+    // Skip the check on admin commands.
+    if is_admin_command(ctx.command()) {
         return Ok(true);
     }
 
