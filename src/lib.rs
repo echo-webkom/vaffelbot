@@ -11,7 +11,7 @@ use sqlx::postgres::PgPoolOptions;
 
 use crate::{
     adapters::{DiscordAdapter, HttpAdapter},
-    infrastructure::{PostgresOrderRepository, RedisQueueRepository},
+    infrastructure::{PostgresChannelRepository, PostgresOrderRepository, RedisQueueRepository},
 };
 
 pub struct VaffelBot {
@@ -47,12 +47,16 @@ impl VaffelBot {
             Arc::new(RedisQueueRepository::new(redis).await?);
 
         let orders: Arc<dyn domain::OrderRepository> =
-            Arc::new(PostgresOrderRepository::new(pg_pool));
+            Arc::new(PostgresOrderRepository::new(pg_pool.clone()));
+
+        let channels: Arc<dyn domain::ChannelRepository> =
+            Arc::new(PostgresChannelRepository::new(pg_pool));
 
         let discord_adapter = DiscordAdapter::new(
             self.config.discord_token.clone(),
             queue.clone(),
             orders.clone(),
+            channels,
             self.config.github_token.clone(),
         );
 

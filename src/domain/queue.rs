@@ -1,7 +1,3 @@
-// Double must use because of async_trait and mockall.
-// Might be fixed in the future.
-#![allow(clippy::double_must_use)]
-
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct QueueEntry {
     pub user_id: String,

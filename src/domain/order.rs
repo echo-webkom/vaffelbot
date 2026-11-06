@@ -1,7 +1,3 @@
-// Double must use because of async_trait and mockall.
-// Might be fixed in the future.
-#![allow(clippy::double_must_use)]
-
 #[cfg_attr(test, mockall::automock)]
 #[async_trait::async_trait]
 pub trait OrderRepository: Send + Sync {

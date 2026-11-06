@@ -1,4 +1,5 @@
 pub mod bake;
+pub mod channel;
 pub mod close;
 pub mod feedback;
 pub mod github;

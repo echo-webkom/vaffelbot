@@ -5,7 +5,7 @@ use std::sync::Arc;
 use poise::FrameworkOptions;
 use serenity::all::GatewayIntents;
 
-use crate::domain::{OrderRepository, QueueRepository};
+use crate::domain::{ChannelRepository, OrderRepository, QueueRepository, is_channel_allowed};
 
 const PREFIX: &str = "!";
 
@@ -15,6 +15,7 @@ pub type Context<'a> = poise::Context<'a, Data, Error>;
 pub struct Data {
     pub queue: Arc<dyn QueueRepository>,
     pub orders: Arc<dyn OrderRepository>,
+    pub channels: Arc<dyn ChannelRepository>,
     pub github_token: Option<String>,
 }
 
@@ -22,6 +23,7 @@ pub struct DiscordAdapter {
     token: String,
     queue: Arc<dyn QueueRepository>,
     orders: Arc<dyn OrderRepository>,
+    channels: Arc<dyn ChannelRepository>,
     github_token: Option<String>,
 }
 
@@ -30,12 +32,14 @@ impl DiscordAdapter {
         token: String,
         queue: Arc<dyn QueueRepository>,
         orders: Arc<dyn OrderRepository>,
+        channels: Arc<dyn ChannelRepository>,
         github_token: Option<String>,
     ) -> Self {
         Self {
             token,
             queue,
             orders,
+            channels,
             github_token,
         }
     }
@@ -44,6 +48,7 @@ impl DiscordAdapter {
         let options: FrameworkOptions<Data, Error> = poise::FrameworkOptions {
             commands: vec![
                 commands::bake::bake(),
+                commands::channel::channel(),
                 commands::close::close(),
                 commands::github::github(),
                 commands::highscore::highscore(),
@@ -57,6 +62,7 @@ impl DiscordAdapter {
                 prefix: Some(PREFIX.into()),
                 ..Default::default()
             },
+            command_check: Some(|ctx| Box::pin(check_channel_allowed(ctx))),
             ..Default::default()
         };
 
@@ -67,6 +73,7 @@ impl DiscordAdapter {
                     Ok(Data {
                         queue: self.queue.clone(),
                         orders: self.orders.clone(),
+                        channels: self.channels.clone(),
                         github_token: self.github_token.clone(),
                     })
                 })
@@ -84,6 +91,43 @@ impl DiscordAdapter {
         client.start().await?;
         Ok(())
     }
+}
+
+/// Global check: only respond in channels enabled with `/vaffelkanal`.
+/// If no channels are enabled for the guild, every channel is allowed.
+async fn check_channel_allowed(ctx: Context<'_>) -> Result<bool, Error> {
+    let Some(guild_id) = ctx.guild_id() else {
+        return Ok(true);
+    };
+
+    if ctx.command().name == commands::channel::channel().name {
+        return Ok(true);
+    }
+
+    let guild_id = guild_id.to_string();
+    let allowed = match ctx.data().channels.list(&guild_id).await {
+        Ok(allowed) => allowed,
+        Err(e) => {
+            // Fail open so a database hiccup does not silence the bot.
+            tracing::error!(guild_id, error = ?e, "Failed to fetch allowed channels");
+            return Ok(true);
+        }
+    };
+
+    if is_channel_allowed(&allowed, &ctx.channel_id().to_string()) {
+        return Ok(true);
+    }
+
+    if let Context::Application(_) = ctx {
+        ctx.send(
+            poise::CreateReply::default()
+                .content(commands::channel::denied_message(&allowed))
+                .ephemeral(true),
+        )
+        .await?;
+    }
+
+    Ok(false)
 }
 
 pub async fn check_is_oracle(ctx: Context<'_>) -> Result<bool, Error> {
