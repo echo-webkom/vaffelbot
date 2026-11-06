@@ -41,9 +41,8 @@ impl ChannelRepository for PostgresChannelRepository {
             false
         };
 
-        tx.commit().await.map_err(|e| {
+        tx.commit().await.inspect_err(|e| {
             tracing::error!(guild_id, channel_id, error = ?e, "Failed to toggle channel");
-            e
         })?;
 
         tracing::info!(guild_id, channel_id, enabled, "Toggled channel");
@@ -58,9 +57,8 @@ impl ChannelRepository for PostgresChannelRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| {
+        .inspect_err(|e| {
             tracing::error!(guild_id, error = ?e, "Failed to list allowed channels");
-            e
         })?;
 
         tracing::debug!(

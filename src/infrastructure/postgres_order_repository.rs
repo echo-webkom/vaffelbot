@@ -27,9 +27,8 @@ impl OrderRepository for PostgresOrderRepository {
         )
         .fetch_optional(&self.pool)
         .await
-        .map_err(|e| {
+        .inspect_err(|e| {
             tracing::error!(guild_id, error = ?e, "Failed to fetch waffle highscore");
-            e
         })?;
 
         Ok(record.map(|row| Highscore {
@@ -64,14 +63,13 @@ impl OrderRepository for PostgresOrderRepository {
         )
         .execute(&self.pool)
         .await
-        .map_err(|e| {
+        .inspect_err(|e| {
             tracing::error!(
                 count = discord_user_ids.len(),
                 guild_id,
                 error = ?e,
                 "Failed to record orders in database"
             );
-            e
         })?;
 
         tracing::info!(
@@ -92,9 +90,8 @@ impl OrderRepository for PostgresOrderRepository {
         )
         .fetch_one(&self.pool)
         .await
-        .map_err(|e| {
+        .inspect_err(|e| {
             tracing::error!(guild_id, error = ?e, "Failed to fetch total order count");
-            e
         })?
         .unwrap_or(0);
 
@@ -108,9 +105,8 @@ impl OrderRepository for PostgresOrderRepository {
         )
         .fetch_all(&self.pool)
         .await
-        .map_err(|e| {
+        .inspect_err(|e| {
             tracing::error!(guild_id, error = ?e, "Failed to fetch top users");
-            e
         })?
         .into_iter()
         .map(|row| (row.discord_user_id, row.count.unwrap_or(0)))
