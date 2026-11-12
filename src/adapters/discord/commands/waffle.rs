@@ -5,9 +5,15 @@ use crate::domain::{QueueEntry, QueueRepository};
 #[tracing::instrument(name = "waffle", skip(ctx))]
 #[poise::command(prefix_command, slash_command, rename = "vaffel")]
 pub async fn waffle(ctx: Context<'_>) -> Result<(), Error> {
-    let guild_id = ctx.guild_id().unwrap().to_string();
-    let user_id = ctx.author().id.to_string();
-    let display_name = ctx.author().name.clone();
+    let guild = ctx.guild_id().unwrap();
+    let guild_id = guild.to_string();
+    let author = ctx.author();
+    let user_id = author.id.to_string();
+    let member = guild.member(ctx, author.id).await?;
+    let display_name = member
+        .nick
+        .or_else(|| author.global_name.clone())
+        .unwrap_or_else(|| author.name.clone());
     let message = join_queue(ctx.data().queue.as_ref(), &guild_id, user_id, display_name).await?;
     ctx.say(message).await?;
 
